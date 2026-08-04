@@ -83,7 +83,7 @@ function describeItem(item) {
   const b = BASES.find((x) => x.id === item.base);
   if (b) parts.push(b.en);
   if (item.foam) parts.push("Cold Foam");
-  return parts.length ? parts.join(" Â· ") : "Plain";
+  return parts.length ? parts.join(" - ") : "Plain";
 }
 
 function primaryDrink(cart) {
@@ -172,7 +172,7 @@ function Chip({ active, onClick, children }) {
 }
 
 /* ---------------------------------------------------------------
-   Backend â€” Supabase. Orders hold an `items` array; each item now
+   Backend - Supabase. Orders hold an `items` array; each item now
    carries its own status ("pending" | "ready") so three baristas
    can each work their own drink station independently. An order's
    row-level status flips to "done" once every item in it is ready.
@@ -189,32 +189,38 @@ async function withRetry(fn, retries = 3, delayMs = 350) {
 }
 function friendlyError(err) {
   const raw = (err && err.message) || String(err);
-  return `Something didn't go through â€” please try again. (${raw})`;
+  return `Something didn't go through - please try again. (${raw})`;
 }
 async function fetchActiveOrders() {
-  if (!supabaseConfigured) throw new Error("Supabase isn't configured â€” check environment variables.");
+  if (!supabaseConfigured) throw new Error("Supabase isn't configured - check environment variables.");
   const { data, error } = await supabase.from("orders").select("*").eq("status", "pending").order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
   return data || [];
 }
+async function fetchOrderHistory() {
+  if (!supabaseConfigured) throw new Error("Supabase isn't configured - check environment variables.");
+  const { data, error } = await supabase.from("orders").select("*").eq("status", "done").order("created_at", { ascending: false }).limit(200);
+  if (error) throw new Error(error.message);
+  return data || [];
+}
 async function updateOrderItems(orderRowId, items, status) {
-  if (!supabaseConfigured) throw new Error("Supabase isn't configured â€” check environment variables.");
+  if (!supabaseConfigured) throw new Error("Supabase isn't configured - check environment variables.");
   const { error } = await supabase.from("orders").update({ items, status }).eq("id", orderRowId);
   if (error) throw new Error(error.message);
 }
 async function reserveOrderNumber() {
-  if (!supabaseConfigured) throw new Error("Supabase isn't configured â€” check environment variables.");
+  if (!supabaseConfigured) throw new Error("Supabase isn't configured - check environment variables.");
   const { data, error } = await supabase.rpc("next_order_number");
   if (error) throw new Error(error.message);
   return data;
 }
 async function insertOrder({ number, name, items }) {
-  if (!supabaseConfigured) throw new Error("Supabase isn't configured â€” check environment variables.");
+  if (!supabaseConfigured) throw new Error("Supabase isn't configured - check environment variables.");
   const { error } = await supabase.from("orders").insert({ number, name, items, status: "pending" });
   if (error) throw new Error(error.message);
 }
 async function resetOrderCounterDb() {
-  if (!supabaseConfigured) throw new Error("Supabase isn't configured â€” check environment variables.");
+  if (!supabaseConfigured) throw new Error("Supabase isn't configured - check environment variables.");
   const { error } = await supabase.from("order_counter").update({ value: 0 }).eq("id", 1);
   if (error) throw new Error(error.message);
 }
@@ -311,6 +317,24 @@ export default function HalfDayCafe() {
   const [selectedItem, setSelectedItem] = useState(null); // { orderRowId, orderNumber, name, item, itemIndex }
   const [resetArm, setResetArm] = useState(false);
   const [resetMsg, setResetMsg] = useState(null);
+  const [baristaView, setBaristaView] = useState("queue"); // queue | history
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState(null);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const data = await fetchOrderHistory();
+      setHistory(data);
+      setHistoryError(null);
+    } catch (err) { setHistoryError(friendlyError(err)); }
+    setHistoryLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (page !== "barista" || baristaView !== "history") return;
+    loadHistory();
+  }, [page, baristaView, loadHistory]);
 
   const loadQueue = useCallback(async () => {
     try {
@@ -387,6 +411,7 @@ export default function HalfDayCafe() {
   const removeFromCart = (key) => setCart((c) => c.filter((i) => i.key !== key));
 
   const submitOrder = async () => {
+    if (cart.length === 0 || !customerName.trim()) return;
     setSubmitError(null);
     setPage("submitting");
     try {
@@ -418,14 +443,53 @@ export default function HalfDayCafe() {
         <BackgroundPhoto src={BG.home} />
         <div style={{ position: "relative", paddingBottom: "110px" }}>
           <div style={{ padding: "50px 22px 16px" }}>
-            <div className="hd-display" style={{ fontSize: "28px", fontWeight: 600, color: COLORS.white }}>Barista Queue</div>
-            <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.7)" }}>Half Day Cafe Â· tap an item to see details and mark it ready</div>
+            <div className="hd-display" style={{ fontSize: "28px", fontWeight: 600, color: COLORS.white }}>Barista</div>
+            <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.7)" }}>Half Day Cafe - tap an item to see details and mark it ready</div>
+            <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
+              <button onClick={() => setBaristaView("queue")} style={{ padding: "7px 14px", borderRadius: "999px", border: `1px solid ${baristaView === "queue" ? COLORS.gold : COLORS.line}`, background: baristaView === "queue" ? "rgba(201,168,118,0.2)" : "rgba(4,12,8,0.4)", color: COLORS.cream, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
+                Queue
+              </button>
+              <button onClick={() => setBaristaView("history")} style={{ padding: "7px 14px", borderRadius: "999px", border: `1px solid ${baristaView === "history" ? COLORS.gold : COLORS.line}`, background: baristaView === "history" ? "rgba(201,168,118,0.2)" : "rgba(4,12,8,0.4)", color: COLORS.cream, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
+                History
+              </button>
+            </div>
           </div>
 
+          {baristaView === "history" ? (
+            <div style={{ padding: "0 22px" }}>
+              {historyError && <div style={{ fontSize: "12.5px", color: "#f4b48a", marginBottom: "14px" }}>{historyError}</div>}
+              {historyLoading ? (
+                <div style={{ color: "rgba(244,240,230,0.7)", fontSize: "13px" }}>Loading history...</div>
+              ) : history.length === 0 ? (
+                <div style={{ color: "rgba(244,240,230,0.55)", fontSize: "13px", marginTop: "40px", textAlign: "center" }}>No completed orders yet.</div>
+              ) : (
+                <>
+                  <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.6)", marginBottom: "12px" }}>{history.length} completed order{history.length === 1 ? "" : "s"} (most recent 200)</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {history.map((o) => (
+                      <div key={o.id} style={{ borderRadius: "14px", border: `1px solid ${COLORS.line}`, background: "rgba(4,12,8,0.45)", padding: "12px 14px" }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+                          <div className="hd-display" style={{ fontSize: "20px", fontWeight: 600, color: COLORS.gold }}>{formatOrderNumber(o.number)}</div>
+                          {o.name && <div style={{ fontSize: "12.5px", color: COLORS.white, fontWeight: 600 }}>{o.name}</div>}
+                          <div style={{ fontSize: "10.5px", color: "rgba(244,240,230,0.45)", marginLeft: "auto" }}>{new Date(o.created_at).toLocaleString()}</div>
+                        </div>
+                        <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                          {(o.items || []).map((it, i) => (
+                            <div key={i} style={{ fontSize: "11.5px", color: "rgba(244,240,230,0.65)" }}>{it.en} - {describeItem(it)}</div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+          <>
           {queueError && <div style={{ margin: "0 22px 14px", fontSize: "12.5px", color: "#f4b48a" }}>{queueError}</div>}
 
           {queueLoading ? (
-            <div style={{ padding: "0 22px", color: "rgba(244,240,230,0.7)", fontSize: "13px" }}>Loading queueâ€¦</div>
+            <div style={{ padding: "0 22px", color: "rgba(244,240,230,0.7)", fontSize: "13px" }}>Loading queue...</div>
           ) : (
             <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: "18px" }}>
               {stations.map((st) => {
@@ -470,13 +534,12 @@ export default function HalfDayCafe() {
               onClick={() => (resetArm ? doResetCounter() : setResetArm(true))}
               style={{ padding: "9px 14px", borderRadius: "999px", border: `1px solid ${resetArm ? "#f4b48a" : COLORS.line}`, background: resetArm ? "rgba(244,180,138,0.15)" : "rgba(4,12,8,0.4)", color: resetArm ? "#f4b48a" : "rgba(244,240,230,0.7)", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
             >
-              {resetArm ? "Tap again to confirm reset â†’ 00" : "Reset order counter"}
+              {resetArm ? "Tap again to confirm reset -> 00" : "Reset order counter"}
             </button>
             {resetMsg && <div style={{ fontSize: "11.5px", color: "rgba(244,240,230,0.6)", marginTop: "8px" }}>{resetMsg}</div>}
-            <div style={{ fontSize: "10.5px", color: "rgba(244,240,230,0.4)", marginTop: "8px" }}>
-              Note: redeploying the site does NOT reset this â€” it's stored in the database. Numbers no longer wrap at 99; they keep counting so you can see total orders.
-            </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* item detail modal */}
@@ -487,7 +550,7 @@ export default function HalfDayCafe() {
                 <Badge type={selectedItem.item.drinkId} size={48} />
                 <div>
                   <div className="hd-display" style={{ fontSize: "26px", fontWeight: 600, color: COLORS.white }}>{selectedItem.item.en}</div>
-                  <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.6)" }}>Order {formatOrderNumber(selectedItem.orderNumber)}{selectedItem.name ? ` Â· ${selectedItem.name}` : ""}</div>
+                  <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.6)" }}>Order {formatOrderNumber(selectedItem.orderNumber)}{selectedItem.name ? ` - ${selectedItem.name}` : ""}</div>
                 </div>
               </div>
               <div style={{ fontSize: "14px", color: COLORS.cream, background: "rgba(244,240,230,0.06)", borderRadius: "12px", padding: "12px 14px", marginBottom: "18px" }}>
@@ -635,7 +698,7 @@ export default function HalfDayCafe() {
               </div>
             )}
             {cart.length === 0 ? (
-              <div style={{ color: "rgba(244,240,230,0.6)", fontSize: "13px", marginTop: "40px", textAlign: "center" }}>Nothing here yet â€” go pick a drink.</div>
+              <div style={{ color: "rgba(244,240,230,0.6)", fontSize: "13px", marginTop: "40px", textAlign: "center" }}>Nothing here yet - go pick a drink.</div>
             ) : (
               <>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -654,7 +717,7 @@ export default function HalfDayCafe() {
                   ))}
                 </div>
                 <div style={{ marginTop: "20px" }}>
-                  <div style={{ fontSize: "11px", letterSpacing: "0.08em", color: "rgba(244,240,230,0.6)", marginBottom: "8px", fontWeight: 700 }}>NAME FOR YOUR ORDER (OPTIONAL)</div>
+                  <div style={{ fontSize: "11px", letterSpacing: "0.08em", color: "rgba(244,240,230,0.6)", marginBottom: "8px", fontWeight: 700 }}>NAME FOR YOUR ORDER (REQUIRED - ONE PERSON PER ORDER)</div>
                   <input
                     className="hd-name-input"
                     value={customerName}
@@ -672,9 +735,9 @@ export default function HalfDayCafe() {
           </div>
 
           <div style={{ padding: "16px 20px 0" }}>
-            <button onClick={submitOrder} disabled={cart.length === 0 || page === "submitting"}
-              style={{ width: "100%", padding: "15px", borderRadius: "14px", border: "none", background: cart.length === 0 ? "rgba(201,168,118,0.35)" : COLORS.gold, color: "#241f18", fontSize: "15px", fontWeight: 700, cursor: cart.length === 0 || page === "submitting" ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-              {page === "submitting" ? (<><RotateCcw size={16} className="hd-spinner" /> Sendingâ€¦</>) : (<><Check size={17} /> Submit Order</>)}
+            <button onClick={submitOrder} disabled={cart.length === 0 || !customerName.trim() || page === "submitting"}
+              style={{ width: "100%", padding: "15px", borderRadius: "14px", border: "none", background: (cart.length === 0 || !customerName.trim()) ? "rgba(201,168,118,0.35)" : COLORS.gold, color: "#241f18", fontSize: "15px", fontWeight: 700, cursor: (cart.length === 0 || !customerName.trim() || page === "submitting") ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+              {page === "submitting" ? (<><RotateCcw size={16} className="hd-spinner" /> Sending...</>) : (<><Check size={17} /> Submit Order</>)}
             </button>
           </div>
         </div>
@@ -690,7 +753,7 @@ export default function HalfDayCafe() {
 
       {!supabaseConfigured && (
         <div style={{ position: "relative", zIndex: 5, padding: "10px 20px", background: COLORS.gold, color: "#241f18", fontSize: "12px", textAlign: "center", fontWeight: 600 }}>
-          Supabase isn't configured â€” orders can't be submitted yet.
+          Supabase isn't configured - orders can't be submitted yet.
         </div>
       )}
 
@@ -700,7 +763,7 @@ export default function HalfDayCafe() {
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(4,12,8,0.25) 0%, rgba(4,12,8,0.15) 45%, #07150f 100%)" }} />
           <div style={{ position: "absolute", left: "24px", right: "24px", bottom: "26px" }}>
             <div className="hd-display" style={{ fontSize: "44px", fontWeight: 600, lineHeight: 1, color: COLORS.white }}>Half Day Cafe</div>
-            <div style={{ fontSize: "12px", letterSpacing: "0.14em", color: "rgba(244,240,230,0.8)", marginTop: "8px" }}>æµ®ç”ŸåŠæ—¥ Â· SLOW BREWS, STILL MOMENTS</div>
+            <div style={{ fontSize: "12px", letterSpacing: "0.14em", color: "rgba(244,240,230,0.8)", marginTop: "8px" }}>{"\u6D6E\u751F\u534A\u65E5 - SLOW BREWS, STILL MOMENTS"}</div>
             <div style={{ width: "34px", height: "2px", background: COLORS.gold, marginTop: "12px" }} />
           </div>
         </div>
@@ -720,7 +783,7 @@ export default function HalfDayCafe() {
           ))}
 
           <div style={{ marginTop: "10px", borderRadius: "16px", overflow: "hidden", position: "relative", padding: "20px 18px", background: "rgba(244,240,230,0.04)", border: `1px solid ${COLORS.line}` }}>
-            <div className="hd-display" style={{ fontSize: "24px", color: COLORS.white }}>å·å¾—æµ®ç”ŸåŠæ—¥é—²</div>
+            <div className="hd-display" style={{ fontSize: "24px", color: COLORS.white }}>{"\u5077\u5F97\u6D6E\u751F\u534A\u65E5\u95F2"}</div>
             <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.75)", marginTop: "6px", fontStyle: "italic" }}>Steal a half-day of leisure from this busy life</div>
             <div style={{ fontSize: "10.5px", color: "rgba(244,240,230,0.5)", marginTop: "10px", letterSpacing: "0.05em" }}>LIC Entertainment Co. Presents</div>
           </div>
