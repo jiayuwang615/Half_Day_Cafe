@@ -94,6 +94,20 @@ const DRINKS = [
   },
 ];
 
+/* ---------------------------------------------------------------
+   Sold-out management: covers whole products AND individual
+   modifiers (a flavor, a base/milk, or the cold foam add-on) so the
+   Barista "Sold Out" tab can turn off just "Strawberry" or just
+   "Cold Foam" without hiding the whole drink. Ids are namespaced
+   (e.g. "flavor:strawberry") so they don't collide with product ids.
+--------------------------------------------------------------- */
+const SOLD_OUT_GROUPS = [
+  { title: "Products", items: DRINKS.map((d) => ({ id: d.id, label: d.en })) },
+  { title: "Flavors", items: FLAVORS.filter((f) => f.id !== "original").map((f) => ({ id: `flavor:${f.id}`, label: f.en })) },
+  { title: "Base / Milk", items: BASES.map((b) => ({ id: `base:${b.id}`, label: b.en })) },
+  { title: "Add-ons", items: [{ id: "addon:foam", label: "Cold Foam" }] },
+];
+
 const DEFAULT_DRAFT = { temp: "hot", flavor: "original", base: "water", foam: false };
 
 function describeItem(item) {
@@ -217,24 +231,30 @@ function Badge({ type, size = 96 }) {
     </div>
   );
 }
-function Chip({ active, onClick, children }) {
+function Chip({ active, onClick, children, soldOut }) {
+  if (soldOut) {
+    return (
+      <span className="hd-chip" style={{ opacity: 0.4, cursor: "default", textDecoration: "line-through" }}>
+        {children}
+      </span>
+    );
+  }
   return <button onClick={onClick} className={`hd-chip ${active ? "hd-chip-active" : ""}`}>{children}</button>;
 }
 
 /* ---------------------------------------------------------------
-   A short, original Chinese summer couplet (1-2 lines) shown on the
-   order status page after submitting. Not quoted from any existing
-   text - written for this brand.
+   A short classical Chinese summer couplet (public-domain Tang/Song
+   dynasty poetry, same era as the brand's own slogan) shown on the
+   order status page, with an original English rendering + source.
 --------------------------------------------------------------- */
 const POEMS = [
-  { zh: "\u6D6E\u751F\u82E5\u8336\u0020\u6DE1\u800C\u56DE\u7518", en: "Life drifts like tea - plain at first, sweet in the aftertaste." },
-  { zh: "\u534A\u65E5\u4E4B\u95F2\u0020\u80DC\u8FC7\u5343\u91D1", en: "Half a day of leisure is worth more than a fortune." },
-  { zh: "\u590F\u98CE\u9001\u51C9\u0020\u5FC3\u81EA\u5B89\u7136", en: "The summer breeze brings coolness; the heart finds its own calm." },
-  { zh: "\u4E00\u676F\u5728\u624B\u0020\u4E07\u4E8B\u53EF\u7F13", en: "With a cup in hand, everything else can wait." },
-  { zh: "\u751C\u82E6\u76F8\u4F34\u0020\u65B9\u6210\u597D\u5473", en: "Sweetness and bitterness together make the best flavor." },
-  { zh: "\u6162\u716E\u5149\u9634\u0020\u81EA\u6709\u6E05\u9999", en: "Slow-brewed time carries its own quiet fragrance." },
+  { zh: "\u5C0F\u8377\u624D\u9732\u5C16\u5C16\u89D2\uFF0C\u65E9\u6709\u8734\u8721\u7ACB\u4E0A\u5934\u3002", en: "The first tiny lotus tip has just broken the surface, and already a dragonfly stands on it.", from: "Yang Wanli, 'The Small Pond' (Song Dynasty)" },
+  { zh: "\u63A5\u5929\u83EF\u53F6\u65E0\u7A77\u78A7\uFF0C\u6620\u65E5\u8377\u82B1\u522B\u6837\u7EA2\u3002", en: "Lotus leaves meet the sky in endless green; sunlit lotus blooms glow a red like no other.", from: "Yang Wanli, 'Leaving Jingci Temple at Dawn' (Song Dynasty)" },
+  { zh: "\u522B\u9662\u6DF1\u6DF1\u590F\u7B7E\u6E05\uFF0C\u77F3\u69B4\u5F00\u904D\u900F\u5E18\u660E\u3002", en: "In the quiet courtyard the summer mat runs cool; pomegranates bloom bright through the curtain.", from: "Su Shunqin, 'Summer Thoughts' (Song Dynasty)" },
+  { zh: "\u7A3B\u82B1\u9999\u91CC\u8BF4\u4E30\u5E74\uFF0C\u542C\u53D6\u86D9\u58F0\u4E00\u7247\u3002", en: "Amid the fragrance of rice flowers they speak of a good harvest, over a chorus of frogs.", from: "Xin Qiji, 'Riding at Night Past Yellow Sand Ridge' (Song Dynasty)" },
+  { zh: "\u9ED1\u4E91\u7FFB\u58A8\u672A\u906E\u5C71\uFF0C\u767D\u96E8\u8DF3\u73E0\u4E71\u5165\u8239\u3002", en: "Black clouds spill like ink, not yet hiding the hills; white rain leaps like scattered pearls into the boat.", from: "Su Shi, 'Written While Drunk at Wanghu Tower' (Song Dynasty)" },
+  { zh: "\u6885\u5B50\u91D1\u9EC4\u674F\u5B50\u80A5\uFF0C\u9EA6\u82B1\u96EA\u767D\u83DC\u82B1\u7A00\u3002", en: "Plums turn golden, apricots grow plump; wheat flowers snow-white, the last rapeseed blossoms thin.", from: "Fan Chengda, 'Fields in Every Season' (Song Dynasty)" },
 ];
-
 
 /* ---------------------------------------------------------------
    Backend - Supabase. Orders hold an `items` array; each item now
@@ -591,7 +611,7 @@ export default function HalfDayCafe() {
 
   const addToCart = (drink) => {
     keyCounter.current += 1;
-    const foamOk = drink.foamEligible ? drink.foamEligible(draft) : false;
+    const foamOk = drink.foamEligible ? drink.foamEligible(draft) && !soldOut["addon:foam"] : false;
     const base = drink.special
       ? { key: keyCounter.current, drinkId: drink.id, en: drink.en, status: "pending" }
       : { key: keyCounter.current, drinkId: drink.id, en: drink.en, temp: draft.temp, flavor: draft.flavor, base: draft.base, foam: foamOk ? draft.foam : false, status: "pending" };
@@ -656,38 +676,51 @@ export default function HalfDayCafe() {
 
           {baristaView === "soldout" ? (
             <div style={{ padding: "0 22px" }}>
-              <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.6)", marginBottom: "14px" }}>
-                Toggle an item off to hide it from ordering on the Home page.
+              <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.6)", marginBottom: "16px" }}>
+                Toggle a whole product off to hide it entirely, or toggle a specific flavor, base, or add-on
+                off to just remove that one option (the rest of the drink stays orderable).
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {DRINKS.map((d) => {
-                  const isOut = !!soldOut[d.id];
-                  return (
-                    <button
-                      key={d.id}
-                      onClick={() => toggleSoldOut(d.id)}
-                      disabled={soldOutSaving === d.id}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
-                        padding: "14px 16px", borderRadius: "14px",
-                        border: `1px solid ${isOut ? "rgba(226,163,122,0.5)" : COLORS.line}`,
-                        background: isOut ? "rgba(226,163,122,0.12)" : "rgba(4,12,8,0.45)",
-                        cursor: "pointer", textAlign: "left",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ width: 30, height: 30, borderRadius: "50%", background: COLORS.cream, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <DrinkIcon type={d.id} size={18} />
-                        </div>
-                        <div className="hd-display" style={{ fontSize: "18px", fontWeight: 600, color: COLORS.white }}>{d.en}</div>
-                      </div>
-                      <div style={{ fontSize: "12px", fontWeight: 700, color: isOut ? "#f4b48a" : COLORS.sage }}>
-                        {soldOutSaving === d.id ? "..." : isOut ? "SOLD OUT" : "AVAILABLE"}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              {SOLD_OUT_GROUPS.map((group) => (
+                <div key={group.title} style={{ marginBottom: "22px" }}>
+                  <div style={{ fontSize: "10.5px", letterSpacing: "0.1em", color: "rgba(244,240,230,0.5)", fontWeight: 700, marginBottom: "10px" }}>
+                    {group.title.toUpperCase()}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {group.items.map((item) => {
+                      const isOut = !!soldOut[item.id];
+                      const isProduct = !item.id.includes(":");
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => toggleSoldOut(item.id)}
+                          disabled={soldOutSaving === item.id}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+                            padding: isProduct ? "14px 16px" : "11px 16px", borderRadius: "14px",
+                            border: `1px solid ${isOut ? "rgba(226,163,122,0.5)" : COLORS.line}`,
+                            background: isOut ? "rgba(226,163,122,0.12)" : "rgba(4,12,8,0.45)",
+                            cursor: "pointer", textAlign: "left",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            {isProduct && (
+                              <div style={{ width: 30, height: 30, borderRadius: "50%", background: COLORS.cream, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                <DrinkIcon type={item.id} size={18} />
+                              </div>
+                            )}
+                            <div className={isProduct ? "hd-display" : "hd-ui"} style={{ fontSize: isProduct ? "18px" : "13.5px", fontWeight: isProduct ? 600 : 500, color: COLORS.white }}>
+                              {item.label}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: "11px", fontWeight: 700, color: isOut ? "#f4b48a" : COLORS.sage }}>
+                            {soldOutSaving === item.id ? "..." : isOut ? "SOLD OUT" : "AVAILABLE"}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : baristaView === "history" ? (
             <div style={{ padding: "0 22px" }}>
@@ -865,6 +898,7 @@ export default function HalfDayCafe() {
             <div className="hd-rise-anim" style={{ marginTop: "22px", maxWidth: "300px" }}>
               <div className="hd-display" style={{ fontSize: "19px", color: COLORS.white }}>{poem.zh}</div>
               <div className="hd-display" style={{ fontSize: "13.5px", fontStyle: "italic", color: "rgba(244,240,230,0.7)", marginTop: "4px" }}>{poem.en}</div>
+              <div style={{ fontSize: "10.5px", color: "rgba(244,240,230,0.45)", marginTop: "6px", letterSpacing: "0.02em" }}>{poem.from}</div>
             </div>
           )}
 
@@ -880,8 +914,9 @@ export default function HalfDayCafe() {
   /* ---------------- Individual drink page ---------------- */
   if (currentDrink) {
     const drink = currentDrink;
-    const foamOk = drink.foamEligible ? drink.foamEligible(draft) : false;
+    const foamOk = drink.foamEligible ? drink.foamEligible(draft) && !soldOut["addon:foam"] : false;
     const isOut = !!soldOut[drink.id];
+    const selectionBlocked = !drink.special && (!!soldOut[`flavor:${draft.flavor}`] || !!soldOut[`base:${draft.base}`]);
     const ahead = stationItems(drink.id).length;
     const est = estimateWait(drink.id, ahead);
     return (
@@ -937,7 +972,7 @@ export default function HalfDayCafe() {
                   <div style={{ fontSize: "11px", letterSpacing: "0.1em", color: "rgba(244,240,230,0.6)", marginBottom: "9px", fontWeight: 700 }}>FLAVOR</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                     {drink.flavors.map((f) => (
-                      <Chip key={f.id} active={draft.flavor === f.id} onClick={() => setDraft((d) => ({ ...d, flavor: f.id }))}>{f.en}</Chip>
+                      <Chip key={f.id} active={draft.flavor === f.id} soldOut={!!soldOut[`flavor:${f.id}`]} onClick={() => setDraft((d) => ({ ...d, flavor: f.id }))}>{f.en}</Chip>
                     ))}
                   </div>
                 </div>
@@ -945,13 +980,15 @@ export default function HalfDayCafe() {
                   <div style={{ fontSize: "11px", letterSpacing: "0.1em", color: "rgba(244,240,230,0.6)", marginBottom: "9px", fontWeight: 700 }}>CHOICE OF BASE</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                     {drink.bases.map((b) => (
-                      <Chip key={b.id} active={draft.base === b.id} onClick={() => setDraft((d) => ({ ...d, base: b.id }))}>{b.en}</Chip>
+                      <Chip key={b.id} active={draft.base === b.id} soldOut={!!soldOut[`base:${b.id}`]} onClick={() => setDraft((d) => ({ ...d, base: b.id }))}>{b.en}</Chip>
                     ))}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: "11px", letterSpacing: "0.1em", color: "rgba(244,240,230,0.6)", marginBottom: "9px", fontWeight: 700 }}>COLD FOAM</div>
-                  {foamOk ? (
+                  {soldOut["addon:foam"] ? (
+                    <div style={{ fontSize: "11.5px", color: "#f4b48a", fontStyle: "italic" }}>Cold foam is sold out right now.</div>
+                  ) : foamOk ? (
                     <Chip active={draft.foam} onClick={() => setDraft((d) => ({ ...d, foam: !d.foam }))}>Add Cold Foam</Chip>
                   ) : (
                     <div style={{ fontSize: "11.5px", color: "rgba(244,240,230,0.45)", fontStyle: "italic" }}>
@@ -959,7 +996,16 @@ export default function HalfDayCafe() {
                     </div>
                   )}
                 </div>
-                <button onClick={() => addToCart(drink)} style={{ padding: "13px", borderRadius: "12px", border: "none", background: COLORS.gold, color: "#241f18", fontSize: "14.5px", fontWeight: 700, cursor: "pointer" }}>
+                {selectionBlocked && (
+                  <div style={{ fontSize: "11.5px", color: "#f4b48a", fontStyle: "italic" }}>
+                    One of your selections just sold out - pick a different flavor or base to continue.
+                  </div>
+                )}
+                <button
+                  onClick={() => addToCart(drink)}
+                  disabled={selectionBlocked}
+                  style={{ padding: "13px", borderRadius: "12px", border: "none", background: selectionBlocked ? "rgba(201,168,118,0.35)" : COLORS.gold, color: "#241f18", fontSize: "14.5px", fontWeight: 700, cursor: selectionBlocked ? "default" : "pointer" }}
+                >
                   Add to Order
                 </button>
               </div>
