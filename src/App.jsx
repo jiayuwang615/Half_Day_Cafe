@@ -222,51 +222,19 @@ function Chip({ active, onClick, children }) {
 }
 
 /* ---------------------------------------------------------------
-   Fortune cookie interstitial: original, brand-written summer
-   couplets (not quoted from any existing text) in Chinese + English
-   with a short explanation.
+   A short, original Chinese summer couplet (1-2 lines) shown on the
+   order status page after submitting. Not quoted from any existing
+   text - written for this brand.
 --------------------------------------------------------------- */
-const FORTUNES = [
-  { zh: "\u6D6E\u751F\u82E5\u8336\u0020\u6DE1\u800C\u56DE\u7518", en: "Life drifts like tea - plain at first, sweet in the aftertaste.", note: "A reminder that quiet, ordinary moments often carry the deepest sweetness." },
-  { zh: "\u534A\u65E5\u4E4B\u95F2\u0020\u80DC\u8FC7\u5343\u91D1", en: "Half a day of leisure is worth more than a fortune.", note: "Slowing down, even briefly, is a luxury money can't buy." },
-  { zh: "\u590F\u98CE\u9001\u51C9\u0020\u5FC3\u81EA\u5B89\u7136", en: "The summer breeze brings coolness; the heart finds its own calm.", note: "Peace often arrives quietly, carried on something as simple as a breeze." },
-  { zh: "\u4E00\u676F\u5728\u624B\u0020\u4E07\u4E8B\u53EF\u7F13", en: "With a cup in hand, everything else can wait.", note: "Permission to pause - the world will still be there when you're ready." },
-  { zh: "\u751C\u82E6\u76F8\u4F34\u0020\u65B9\u6210\u597D\u5473", en: "Sweetness and bitterness together make the best flavor.", note: "A gentle note that balance, not perfection, makes a good life (and a good drink)." },
-  { zh: "\u6162\u716E\u5149\u9634\u0020\u81EA\u6709\u6E05\u9999", en: "Slow-brewed time carries its own quiet fragrance.", note: "What we rush rarely lasts; what we tend slowly often lingers." },
+const POEMS = [
+  { zh: "\u6D6E\u751F\u82E5\u8336\u0020\u6DE1\u800C\u56DE\u7518", en: "Life drifts like tea - plain at first, sweet in the aftertaste." },
+  { zh: "\u534A\u65E5\u4E4B\u95F2\u0020\u80DC\u8FC7\u5343\u91D1", en: "Half a day of leisure is worth more than a fortune." },
+  { zh: "\u590F\u98CE\u9001\u51C9\u0020\u5FC3\u81EA\u5B89\u7136", en: "The summer breeze brings coolness; the heart finds its own calm." },
+  { zh: "\u4E00\u676F\u5728\u624B\u0020\u4E07\u4E8B\u53EF\u7F13", en: "With a cup in hand, everything else can wait." },
+  { zh: "\u751C\u82E6\u76F8\u4F34\u0020\u65B9\u6210\u597D\u5473", en: "Sweetness and bitterness together make the best flavor." },
+  { zh: "\u6162\u716E\u5149\u9634\u0020\u81EA\u6709\u6E05\u9999", en: "Slow-brewed time carries its own quiet fragrance." },
 ];
 
-function FortuneCookie({ stage, onTap }) {
-  return (
-    <svg viewBox="0 0 200 200" width={190} height={190} onClick={onTap} style={{ cursor: "pointer" }}>
-      <g filter="url(#sketchy)">
-        <path
-          d="M40,112 Q58,72 100,82 Q82,110 40,112 Z"
-          fill={COLORS.cream}
-          stroke={COLORS.ink}
-          strokeWidth="4"
-          style={{ transform: stage >= 2 ? "translate(-20px,8px) rotate(-10deg)" : "none", transition: "transform 0.45s ease", transformOrigin: "70px 95px" }}
-        />
-        <path
-          d="M160,112 Q142,72 100,82 Q118,110 160,112 Z"
-          fill={COLORS.cream}
-          stroke={COLORS.ink}
-          strokeWidth="4"
-          style={{ transform: stage >= 2 ? "translate(20px,8px) rotate(10deg)" : "none", transition: "transform 0.45s ease", transformOrigin: "130px 95px" }}
-        />
-        {stage === 1 && (
-          <path d="M96,80 L103,90 L97,99 L104,110" fill="none" stroke={COLORS.ink} strokeWidth="2.2" strokeLinecap="round" />
-        )}
-        {stage >= 2 && (
-          <rect
-            x="88" y="52" width="24" height="58" rx="2"
-            fill="#FFFDF6" stroke={COLORS.ink} strokeWidth="2"
-            style={{ transformOrigin: "bottom", animation: "hd-slip-rise 0.5s ease both" }}
-          />
-        )}
-      </g>
-    </svg>
-  );
-}
 
 /* ---------------------------------------------------------------
    Backend - Supabase. Orders hold an `items` array; each item now
@@ -319,10 +287,11 @@ async function insertOrder({ number, name, items }) {
 }
 async function resetOrderCounterDb() {
   if (!supabaseConfigured) throw new Error("Supabase isn't configured - check environment variables.");
-  const { error: delErr } = await supabase.from("orders").delete().neq("id", -1); // matches every row (id is always >= 1)
+  const { data: deletedRows, error: delErr } = await supabase.from("orders").delete().neq("id", -1).select("id"); // matches every row (id is always >= 1)
   if (delErr) throw new Error(delErr.message);
   const { error: cntErr } = await supabase.from("order_counter").update({ value: 0 }).eq("id", 1);
   if (cntErr) throw new Error(cntErr.message);
+  return (deletedRows || []).length;
 }
 async function fetchProductStatus() {
   if (!supabaseConfigured) throw new Error("Supabase isn't configured - check environment variables.");
@@ -351,11 +320,10 @@ const formatOrderNumber = (n) => (n < 10 ? `0${n}` : String(n));
 function GlobalStyle() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&family=Ma+Shan+Zheng&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&display=swap');
       * { box-sizing: border-box; }
       .hd-ui { font-family: 'Inter', -apple-system, sans-serif; }
       .hd-display { font-family: 'Cormorant Garamond', Georgia, serif; }
-      .hd-cn-display { font-family: 'Ma Shan Zheng', 'Cormorant Garamond', serif; }
       @keyframes hd-whisk-rotate { 0%,100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg); } }
       .hd-whisk { transform-origin: 100px 60px; animation: hd-whisk-rotate 0.5s ease-in-out infinite; }
       @keyframes hd-drip-fall { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateY(28px); opacity: 0; } }
@@ -369,9 +337,6 @@ function GlobalStyle() {
       .hd-scoop-bounce { transform-origin: 98px 108px; animation: hd-scoop-bounce 1.6s ease-in-out infinite; }
       @keyframes hd-scoop-dip { 0%,100% { transform: translate(0,0) rotate(-8deg); } 45% { transform: translate(-10px,14px) rotate(10deg); } 60% { transform: translate(-6px,10px) rotate(6deg); } }
       .hd-scoop-tool { transform-origin: 80px 55px; animation: hd-scoop-dip 1.6s ease-in-out infinite; }
-      @keyframes hd-cookie-shake { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
-      .hd-cookie-shake { animation: hd-cookie-shake 0.7s ease-in-out infinite; display: inline-block; }
-      @keyframes hd-slip-rise { from { opacity: 0; transform: translateY(14px) scaleY(0.7); } to { opacity: 1; transform: translateY(0) scaleY(1); } }
       @keyframes hd-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       .hd-rise-anim { animation: hd-rise 0.4s ease both; }
       @keyframes hd-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -452,10 +417,27 @@ export default function HalfDayCafe() {
   const [soldOut, setSoldOut] = useState({});
   const [soldOutSaving, setSoldOutSaving] = useState(null);
 
+  const [readyBoard, setReadyBoard] = useState([]);
+  const loadReadyBoard = useCallback(async () => {
+    try {
+      const data = await fetchOrderHistory();
+      const cutoff = Date.now() - 30 * 60 * 1000; // show anything completed in the last 30 min
+      const recent = data.filter((o) => new Date(o.created_at).getTime() >= cutoff).slice(0, 8);
+      setReadyBoard(recent);
+    } catch {
+      // non-fatal: board just stays empty if this fails
+    }
+  }, []);
+  useEffect(() => {
+    if (page !== "home") return;
+    loadReadyBoard();
+    const id = setInterval(loadReadyBoard, 5000);
+    return () => clearInterval(id);
+  }, [page, loadReadyBoard]);
+
   const [submittedOrderId, setSubmittedOrderId] = useState(null);
   const [myOrder, setMyOrder] = useState(null);
-  const [cookieStage, setCookieStage] = useState(0);
-  const [fortune, setFortune] = useState(null);
+  const [poem, setPoem] = useState(null);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -588,13 +570,18 @@ export default function HalfDayCafe() {
   };
 
   const doResetCounter = async () => {
+    const hadOrdersBefore = orders.length > 0 || history.length > 0;
     try {
-      await withRetry(resetOrderCounterDb);
+      const deletedCount = await withRetry(resetOrderCounterDb);
       setOrders([]);
       setHistory([]);
-      setResetMsg("Counter and all orders (queue + history) have been cleared.");
       setResetArm(false);
-      setTimeout(() => setResetMsg(null), 4000);
+      if (deletedCount === 0 && hadOrdersBefore) {
+        setResetMsg("Counter reset, but 0 orders were deleted even though some existed - your Supabase project is likely missing the DELETE policy on the orders table. Re-run the \"public can delete orders\" policy block from supabase-schema.sql.");
+      } else {
+        setResetMsg(`Cleared ${deletedCount} order${deletedCount === 1 ? "" : "s"} and reset the counter to 00.`);
+        setTimeout(() => setResetMsg(null), 5000);
+      }
     } catch (err) {
       setResetMsg(friendlyError(err));
     }
@@ -625,16 +612,15 @@ export default function HalfDayCafe() {
       setOrderNumber(number);
       setSubmittedOrderId(inserted.id);
       setMyOrder(inserted);
-      setCookieStage(0);
-      setFortune(FORTUNES[Math.floor(Math.random() * FORTUNES.length)]);
-      setPage("fortune");
+      setPoem(POEMS[Math.floor(Math.random() * POEMS.length)]);
+      setPage("confirmed");
     } catch (err) {
       setSubmitError(friendlyError(err));
       setPage("cart");
     }
   };
 
-  const newOrder = () => { setCart([]); setOrderNumber(null); setCustomerName(""); setSubmitError(null); setSubmittedOrderId(null); setMyOrder(null); setPage("home"); };
+  const newOrder = () => { setCart([]); setOrderNumber(null); setCustomerName(""); setSubmitError(null); setSubmittedOrderId(null); setMyOrder(null); setPoem(null); setPage("home"); };
   const restartOrder = () => { setCart([]); setCustomerName(""); setSubmitError(null); setDraft(DEFAULT_DRAFT); setPage("home"); };
 
   const primary = primaryDrink(cart);
@@ -824,41 +810,6 @@ export default function HalfDayCafe() {
     );
   }
 
-  /* ---------------- Fortune cookie ---------------- */
-  if (page === "fortune") {
-    const cracked = cookieStage >= 2;
-    return (
-      <div className="hd-ui" style={{ minHeight: "100vh", width: "100%", color: COLORS.cream, position: "relative" }}>
-        <GlobalStyle /><SketchyDefs />
-        <BackgroundPhoto src={BG.confirm} />
-        <div style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px", textAlign: "center" }}>
-          {!cracked && (
-            <div style={{ fontSize: "12.5px", letterSpacing: "0.1em", color: "rgba(244,240,230,0.7)", marginBottom: "18px" }}>
-              {cookieStage === 0 ? "Tap the cookie" : "Tap again to crack it open"}
-            </div>
-          )}
-          <div className={cookieStage < 2 ? "hd-cookie-shake" : ""}>
-            <FortuneCookie stage={cookieStage} onTap={() => setCookieStage((s) => Math.min(s + 1, 2))} />
-          </div>
-
-          {cracked && fortune && (
-            <div className="hd-rise-anim" style={{ marginTop: "10px", maxWidth: "320px" }}>
-              <div className="hd-cn-display" style={{ fontSize: "22px", color: COLORS.white }}>{fortune.zh}</div>
-              <div className="hd-display" style={{ fontSize: "16px", fontStyle: "italic", color: COLORS.gold, marginTop: "8px" }}>{fortune.en}</div>
-              <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.75)", marginTop: "10px", lineHeight: 1.5 }}>{fortune.note}</div>
-              <button
-                onClick={() => setPage("confirmed")}
-                style={{ marginTop: "26px", padding: "12px 28px", borderRadius: "999px", border: "none", background: COLORS.gold, color: "#241f18", fontSize: "13.5px", fontWeight: 700, cursor: "pointer" }}
-              >
-                Continue to Order Status
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   /* ---------------- Confirmed / live order status ---------------- */
   if (page === "confirmed") {
     const myItem = myOrder && myOrder.items ? myOrder.items[0] : null;
@@ -909,6 +860,13 @@ export default function HalfDayCafe() {
           </div>
 
           {waitLine && <div style={{ marginTop: "10px", fontSize: "12px", color: COLORS.gold }}>{waitLine}</div>}
+
+          {poem && (
+            <div className="hd-rise-anim" style={{ marginTop: "22px", maxWidth: "300px" }}>
+              <div className="hd-display" style={{ fontSize: "19px", color: COLORS.white }}>{poem.zh}</div>
+              <div className="hd-display" style={{ fontSize: "13.5px", fontStyle: "italic", color: "rgba(244,240,230,0.7)", marginTop: "4px" }}>{poem.en}</div>
+            </div>
+          )}
 
           <div style={{ marginTop: "14px", fontSize: "13px", color: COLORS.gold }}>tips are appreciated&gt;_&lt;</div>
           <button onClick={newOrder} className="hd-ui" style={{ marginTop: "30px", padding: "12px 28px", borderRadius: "999px", border: `1px solid ${COLORS.line}`, background: "rgba(4,12,8,0.4)", color: COLORS.cream, fontSize: "13px", fontWeight: 600, cursor: "pointer", backdropFilter: "blur(6px)" }}>
@@ -1107,12 +1065,25 @@ export default function HalfDayCafe() {
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(4,12,8,0.25) 0%, rgba(4,12,8,0.15) 45%, #07150f 100%)" }} />
           <div style={{ position: "absolute", left: "24px", right: "24px", bottom: "26px" }}>
             <div className="hd-display" style={{ fontSize: "44px", fontWeight: 600, lineHeight: 1, color: COLORS.white }}>Half Day Cafe</div>
-            <div style={{ fontSize: "12px", letterSpacing: "0.14em", color: "rgba(244,240,230,0.8)", marginTop: "8px" }}><span className="hd-cn-display" style={{ fontSize: "15px", letterSpacing: "0.05em" }}>{"\u6D6E\u751F\u534A\u65E5"}</span> - SLOW BREWS, STILL MOMENTS</div>
+            <div style={{ fontSize: "12px", letterSpacing: "0.14em", color: "rgba(244,240,230,0.8)", marginTop: "8px" }}><span className="hd-display" style={{ fontSize: "15px", letterSpacing: "0.05em" }}>{"\u6D6E\u751F\u534A\u65E5"}</span> - SLOW BREWS, STILL MOMENTS</div>
             <div style={{ width: "34px", height: "2px", background: COLORS.gold, marginTop: "12px" }} />
           </div>
         </div>
 
         <div style={{ padding: "18px 20px 6px", display: "flex", flexDirection: "column", gap: "12px", background: "#07150f" }}>
+          {readyBoard.length > 0 && (
+            <div style={{ borderRadius: "16px", border: `1px solid ${COLORS.sage}`, background: "rgba(159,230,192,0.1)", padding: "14px 16px" }}>
+              <div style={{ fontSize: "11px", letterSpacing: "0.1em", color: COLORS.sage, fontWeight: 700, marginBottom: "10px" }}>READY FOR PICKUP</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                {readyBoard.map((o) => (
+                  <div key={o.id} style={{ display: "flex", alignItems: "baseline", gap: "6px", background: "rgba(4,12,8,0.4)", borderRadius: "10px", padding: "6px 10px" }}>
+                    <span className="hd-display" style={{ fontSize: "18px", fontWeight: 600, color: COLORS.sage }}>{formatOrderNumber(o.number)}</span>
+                    {o.name && <span style={{ fontSize: "11.5px", color: COLORS.white }}>{o.name}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ fontSize: "11px", letterSpacing: "0.12em", color: "rgba(244,240,230,0.55)", fontWeight: 700, marginBottom: "2px" }}>TODAY'S MENU</div>
           {DRINKS.map((drink) => {
             const isOut = !!soldOut[drink.id];
@@ -1154,7 +1125,7 @@ export default function HalfDayCafe() {
           })}
 
           <div style={{ marginTop: "10px", borderRadius: "16px", overflow: "hidden", position: "relative", padding: "20px 18px", background: "rgba(244,240,230,0.04)", border: `1px solid ${COLORS.line}` }}>
-            <div className="hd-cn-display" style={{ fontSize: "20px", color: COLORS.white }}>{"\u5077\u5F97\u6D6E\u751F\u534A\u65E5\u95F2"}</div>
+            <div className="hd-display" style={{ fontSize: "20px", color: COLORS.white }}>{"\u5077\u5F97\u6D6E\u751F\u534A\u65E5\u95F2"}</div>
             <div style={{ fontSize: "12px", color: "rgba(244,240,230,0.75)", marginTop: "6px", fontStyle: "italic" }}>Steal a half-day of leisure from this busy life</div>
             <div style={{ fontSize: "10.5px", color: "rgba(244,240,230,0.5)", marginTop: "10px", letterSpacing: "0.05em" }}>LIC Entertainment Co. Presents</div>
           </div>
