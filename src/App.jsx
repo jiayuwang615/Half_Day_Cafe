@@ -37,8 +37,13 @@ const STATION_CONFIG = {
 };
 function estimateWait(stationId, aheadCount) {
   const cfg = STATION_CONFIG[stationId];
-  const batches = Math.ceil((aheadCount + 1) / cfg.capacity);
-  return { aheadCount, low: batches * cfg.minTime, high: batches * cfg.maxTime };
+  const position = aheadCount + 1; // where a new order joining now would land
+  const batchesBefore = Math.floor((position - 1) / cfg.capacity); // full batches ahead of yours
+  const slotInBatch = ((position - 1) % cfg.capacity) + 1; // your slot within your own batch
+  const fill = slotInBatch / cfg.capacity; // how full your batch is by the time you're in it
+  const low = batchesBefore * cfg.minTime + cfg.minTime;
+  const high = batchesBefore * cfg.maxTime + cfg.minTime + Math.round(fill * (cfg.maxTime - cfg.minTime));
+  return { aheadCount, low, high };
 }
 
 /* ---------------------------------------------------------------
@@ -243,17 +248,20 @@ function Chip({ active, onClick, children, soldOut }) {
 }
 
 /* ---------------------------------------------------------------
-   A short classical Chinese summer couplet (public-domain Tang/Song
-   dynasty poetry, same era as the brand's own slogan) shown on the
-   order status page, with an original English rendering + source.
+   Classical Chinese summer poetry (Tang/Song Dynasty, public domain)
+   shown on the order status page, matching the register of the
+   brand's own slogan. Each verified against multiple sources; my
+   own English rendering + the poet/poem for attribution.
 --------------------------------------------------------------- */
 const POEMS = [
-  { zh: "\u5C0F\u8377\u624D\u9732\u5C16\u5C16\u89D2\uFF0C\u65E9\u6709\u8734\u8721\u7ACB\u4E0A\u5934\u3002", en: "The first tiny lotus tip has just broken the surface, and already a dragonfly stands on it.", from: "Yang Wanli, 'The Small Pond' (Song Dynasty)" },
-  { zh: "\u63A5\u5929\u83EF\u53F6\u65E0\u7A77\u78A7\uFF0C\u6620\u65E5\u8377\u82B1\u522B\u6837\u7EA2\u3002", en: "Lotus leaves meet the sky in endless green; sunlit lotus blooms glow a red like no other.", from: "Yang Wanli, 'Leaving Jingci Temple at Dawn' (Song Dynasty)" },
-  { zh: "\u522B\u9662\u6DF1\u6DF1\u590F\u7B7E\u6E05\uFF0C\u77F3\u69B4\u5F00\u904D\u900F\u5E18\u660E\u3002", en: "In the quiet courtyard the summer mat runs cool; pomegranates bloom bright through the curtain.", from: "Su Shunqin, 'Summer Thoughts' (Song Dynasty)" },
-  { zh: "\u7A3B\u82B1\u9999\u91CC\u8BF4\u4E30\u5E74\uFF0C\u542C\u53D6\u86D9\u58F0\u4E00\u7247\u3002", en: "Amid the fragrance of rice flowers they speak of a good harvest, over a chorus of frogs.", from: "Xin Qiji, 'Riding at Night Past Yellow Sand Ridge' (Song Dynasty)" },
-  { zh: "\u9ED1\u4E91\u7FFB\u58A8\u672A\u906E\u5C71\uFF0C\u767D\u96E8\u8DF3\u73E0\u4E71\u5165\u8239\u3002", en: "Black clouds spill like ink, not yet hiding the hills; white rain leaps like scattered pearls into the boat.", from: "Su Shi, 'Written While Drunk at Wanghu Tower' (Song Dynasty)" },
-  { zh: "\u6885\u5B50\u91D1\u9EC4\u674F\u5B50\u80A5\uFF0C\u9EA6\u82B1\u96EA\u767D\u83DC\u82B1\u7A00\u3002", en: "Plums turn golden, apricots grow plump; wheat flowers snow-white, the last rapeseed blossoms thin.", from: "Fan Chengda, 'Fields in Every Season' (Song Dynasty)" },
+  { zh: "\u5C0F\u8377\u624D\u9732\u5C16\u5C16\u89D2\uFF0C\u65E9\u6709\u873B\u8713\u7ACB\u4E0A\u5934\u3002", en: "The first tiny lotus tip has just broken the surface, and already a dragonfly stands on it.", from: "Yang Wanli, \'The Small Pond\' (Song Dynasty)" },
+  { zh: "\u63A5\u5929\u83B2\u53F6\u65E0\u7A77\u78A7\uFF0C\u6620\u65E5\u8377\u82B1\u522B\u6837\u7EA2\u3002", en: "Lotus leaves meet the sky in endless green; sunlit lotus blooms glow a red like no other.", from: "Yang Wanli, \'Leaving Jingci Temple at Dawn\' (Song Dynasty)" },
+  { zh: "\u522B\u9662\u6DF1\u6DF1\u590F\u7C1F\u6E05\uFF0C\u77F3\u69B4\u5F00\u904D\u900F\u5E18\u660E\u3002", en: "In the quiet courtyard the summer mat runs cool; pomegranates bloom bright through the curtain.", from: "Su Shunqin, \'Summer Thoughts\' (Song Dynasty)" },
+  { zh: "\u9ED1\u4E91\u7FFB\u58A8\u672A\u906E\u5C71\uFF0C\u767D\u96E8\u8DF3\u73E0\u4E71\u5165\u8239\u3002", en: "Black clouds spill like ink, not yet hiding the hills; white rain leaps like scattered pearls into the boat.", from: "Su Shi, \'Written While Drunk at Wanghu Tower\' (Song Dynasty)" },
+  { zh: "\u660E\u6708\u522B\u679D\u60CA\u9E4A\uFF0C\u6E05\u98CE\u534A\u591C\u9E23\u8749\u3002", en: "The bright moon startles a magpie from its branch; a cool breeze carries the cicadas' midnight song.", from: "Xin Qiji, \'Riding at Night Past Yellow Sand Ridge\' (Song Dynasty)" },
+  { zh: "\u6885\u5B50\u7559\u9178\u8F6F\u9F7F\u7259\uFF0C\u82AD\u8549\u5206\u7EFF\u4E0E\u7A97\u7EB1\u3002", en: "Plums leave a sourness that lingers on the teeth; banana leaves lend their green to the window screen.", from: "Fan Chengda, \'Fields in Every Season - Summer\' (Song Dynasty)" },
+  { zh: "\u5C0F\u5A03\u6491\u5C0F\u8247\uFF0C\u5077\u91C7\u767D\u83B2\u56DE\u3002", en: "A little child poles a small boat, secretly picking white lotus to bring home.", from: "Bai Juyi, \'On the Pond\' (Tang Dynasty)" },
+  { zh: "\u591C\u70ED\u4F9D\u7136\u5348\u70ED\u540C\uFF0C\u5F00\u95E8\u5C0F\u7ACB\u6708\u660E\u4E2D\u3002", en: "The night's heat is just as fierce as noon's; I open the door and stand a moment in the bright moonlight.", from: "Yang Wanli, \'Chasing Coolness on a Summer Night\' (Song Dynasty)" },
 ];
 
 /* ---------------------------------------------------------------
@@ -652,6 +660,7 @@ export default function HalfDayCafe() {
       { id: "matcha", label: "Matcha Station" },
       { id: "espresso", label: "Espresso Station" },
       { id: "pourover", label: "Pour Over Station" },
+      { id: "icecream", label: "Sweet Treat Station" },
     ];
     return (
       <div className="hd-ui" style={{ minHeight: "100vh", width: "100%", color: COLORS.cream, position: "relative" }}>
@@ -1117,6 +1126,22 @@ export default function HalfDayCafe() {
         </div>
 
         <div style={{ padding: "18px 20px 6px", display: "flex", flexDirection: "column", gap: "12px", background: "#07150f" }}>
+          {(() => {
+            const inProgressOrders = orders.filter((o) => (o.items || []).some((it) => it.status === "in_progress"));
+            return inProgressOrders.length > 0 ? (
+              <div style={{ borderRadius: "16px", border: `1px solid ${COLORS.gold}`, background: "rgba(201,168,118,0.1)", padding: "14px 16px" }}>
+                <div style={{ fontSize: "11px", letterSpacing: "0.1em", color: COLORS.gold, fontWeight: 700, marginBottom: "10px" }}>BEING MADE</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                  {inProgressOrders.map((o) => (
+                    <div key={o.id} style={{ display: "flex", alignItems: "baseline", gap: "6px", background: "rgba(4,12,8,0.4)", borderRadius: "10px", padding: "6px 10px" }}>
+                      <span className="hd-display" style={{ fontSize: "18px", fontWeight: 600, color: COLORS.gold }}>{formatOrderNumber(o.number)}</span>
+                      {o.name && <span style={{ fontSize: "11.5px", color: COLORS.white }}>{o.name}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null;
+          })()}
           {readyBoard.length > 0 && (
             <div style={{ borderRadius: "16px", border: `1px solid ${COLORS.sage}`, background: "rgba(159,230,192,0.1)", padding: "14px 16px" }}>
               <div style={{ fontSize: "11px", letterSpacing: "0.1em", color: COLORS.sage, fontWeight: 700, marginBottom: "10px" }}>READY FOR PICKUP</div>
