@@ -34,6 +34,7 @@ const STATION_CONFIG = {
   espresso: { capacity: 1, minTime: 3, maxTime: 5 },
   pourover: { capacity: 2, minTime: 3, maxTime: 5 },
   icecream: { capacity: 4, minTime: 1, maxTime: 2 },
+  wine: { capacity: 3, minTime: 1, maxTime: 2 },
 };
 function estimateWait(stationId, aheadCount) {
   const cfg = STATION_CONFIG[stationId];
@@ -97,6 +98,26 @@ const DRINKS = [
     special: true,
     specialNote: "One scoop of vanilla soft-serve with a crisp wafer.",
   },
+  {
+    id: "wine", en: "Wine", verb: "pouring",
+    note: "A small, thoughtful list.",
+    special: true,
+    isWineList: true,
+  },
+];
+
+/* ---------------------------------------------------------------
+   Wine list. Note: I could not independently verify "Hanna
+   Makegoelli" as an existing bottling, so its note stays generic -
+   swap in real tasting notes once confirmed. The other four are
+   verified real wines/producers.
+--------------------------------------------------------------- */
+const WINES = [
+  { id: "viamora_prosecco", en: "Viamora Prosecco", style: "Sparkling White", note: "Light, crisp, and lively with green apple and pear - an easy way to start." },
+  { id: "les_amazones_blanc", en: "Les Amazones Blanc", style: "Orange Wine (Marsanne)", note: "Amber-hued and barrel-aged for a year, with warm spice and dried fruit - elegant, not extreme." },
+  { id: "bloom_bounty_chardonnay", en: "Bloom and Bounty Chardonnay", style: "Chardonnay", note: "A rounder Chardonnay with soft stone fruit and a gentle touch of oak." },
+  { id: "hanna_makegoelli", en: "Hanna Makegoelli", style: "Winemaker's Selection", note: "A small-production bottle - ask your barista what's pouring today." },
+  { id: "quails_gate_foch", en: "Quail's Gate Old Vines Foch", style: "Red (Marechal Foch)", note: "Full-bodied and dark-fruited from some of the Okanagan's oldest vines - coffee, plum, and oak." },
 ];
 
 /* ---------------------------------------------------------------
@@ -111,13 +132,15 @@ const SOLD_OUT_GROUPS = [
   { title: "Flavors", items: FLAVORS.filter((f) => f.id !== "original").map((f) => ({ id: `flavor:${f.id}`, label: f.en })) },
   { title: "Base / Milk", items: BASES.map((b) => ({ id: `base:${b.id}`, label: b.en })) },
   { title: "Add-ons", items: [{ id: "addon:foam", label: "Cold Foam" }] },
+  { title: "Wine", items: WINES.map((w) => ({ id: `wine:${w.id}`, label: w.en })) },
 ];
 
-const DEFAULT_DRAFT = { temp: "hot", flavor: "original", base: "water", foam: false };
+const DEFAULT_DRAFT = { temp: "hot", flavor: "original", base: "water", foam: false, wine: null };
 
 function describeItem(item) {
   if (item.drinkId === "pourover") return "Ask about today's beans";
   if (item.drinkId === "icecream") return "Vanilla soft-serve, crisp wafer";
+  if (item.drinkId === "wine") return item.wineStyle || "Wine";
   const parts = [];
   const t = TEMPS_ESPRESSO.find((x) => x.id === item.temp);
   if (t) parts.push(t.en);
@@ -223,10 +246,23 @@ function IceCreamIcon({ size = 40 }) {
     </svg>
   );
 }
+function WineIcon({ size = 40 }) {
+  return (
+    <svg viewBox="0 0 200 200" width={size} height={size}>
+      <g filter="url(#sketchy)">
+        <path d="M72,48 Q70,102 100,110 Q130,102 128,48 Z" fill="none" stroke={COLORS.ink} strokeWidth="4.4" strokeLinejoin="round" />
+        <path className="hd-scoop-bounce" d="M78,64 Q100,72 122,64 L124,52 Q100,60 76,52 Z" fill={COLORS.ink} opacity="0.85" />
+        <line x1="100" y1="110" x2="100" y2="152" stroke={COLORS.ink} strokeWidth="4" />
+        <line x1="76" y1="152" x2="124" y2="152" stroke={COLORS.ink} strokeWidth="4.4" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
 function DrinkIcon({ type, size }) {
   if (type === "matcha") return <MatchaIcon size={size} />;
   if (type === "espresso") return <EspressoIcon size={size} />;
   if (type === "icecream") return <IceCreamIcon size={size} />;
+  if (type === "wine") return <WineIcon size={size} />;
   return <PourOverIcon size={size} />;
 }
 function Badge({ type, size = 96 }) {
@@ -331,7 +367,7 @@ async function fetchProductStatus() {
 }
 async function setSoldOutDb(id, soldOut) {
   if (!supabaseConfigured) throw new Error("Supabase isn't configured - check environment variables.");
-  const { error } = await supabase.from("product_status").update({ sold_out: soldOut }).eq("id", id);
+  const { error } = await supabase.from("product_status").upsert({ id, sold_out: soldOut });
   if (error) throw new Error(error.message);
 }
 async function fetchOrderById(id) {
@@ -396,6 +432,38 @@ function BackgroundPhoto({ src }) {
   );
 }
 
+function LiveBoard({ title, accent, items, expanded, onToggle }) {
+  if (items.length === 0) return null;
+  return (
+    <div style={{ borderRadius: "16px", border: `1px solid ${accent}`, background: "rgba(4,12,8,0.35)", overflow: "hidden" }}>
+      <button
+        onClick={onToggle}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer" }}
+      >
+        <span style={{ fontSize: "11px", letterSpacing: "0.1em", color: accent, fontWeight: 700, flexShrink: 0 }}>
+          {title.toUpperCase()} ({items.length})
+        </span>
+        {!expanded && (
+          <span style={{ fontSize: "12px", color: "rgba(244,240,230,0.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
+            {items.map((o) => formatOrderNumber(o.number)).join(", ")}
+          </span>
+        )}
+        <ChevronRight size={14} color={accent} style={{ transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.2s ease", flexShrink: 0 }} />
+      </button>
+      {expanded && (
+        <div style={{ padding: "0 16px 14px", display: "flex", flexWrap: "wrap", gap: "10px" }}>
+          {items.map((o) => (
+            <div key={o.id} style={{ display: "flex", alignItems: "baseline", gap: "6px", background: "rgba(4,12,8,0.4)", borderRadius: "10px", padding: "6px 10px" }}>
+              <span className="hd-display" style={{ fontSize: "18px", fontWeight: 600, color: accent }}>{formatOrderNumber(o.number)}</span>
+              {o.name && <span style={{ fontSize: "11.5px", color: COLORS.white }}>{o.name}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BottomTabs({ page, setPage, cartCount }) {
   const tab = (key, label, Icon, badge) => (
     <button className="hd-tab hd-ui" onClick={() => setPage(key)} style={{ color: page === key ? COLORS.white : "rgba(244,240,230,0.5)" }}>
@@ -446,11 +514,13 @@ export default function HalfDayCafe() {
   const [soldOutSaving, setSoldOutSaving] = useState(null);
 
   const [readyBoard, setReadyBoard] = useState([]);
+  const [readyExpanded, setReadyExpanded] = useState(false);
+  const [progressExpanded, setProgressExpanded] = useState(false);
   const loadReadyBoard = useCallback(async () => {
     try {
       const data = await fetchOrderHistory();
       const cutoff = Date.now() - 30 * 60 * 1000; // show anything completed in the last 30 min
-      const recent = data.filter((o) => new Date(o.created_at).getTime() >= cutoff).slice(0, 8);
+      const recent = data.filter((o) => new Date(o.created_at).getTime() >= cutoff).slice(0, 10);
       setReadyBoard(recent);
     } catch {
       // non-fatal: board just stays empty if this fails
@@ -619,6 +689,13 @@ export default function HalfDayCafe() {
 
   const addToCart = (drink) => {
     keyCounter.current += 1;
+    if (drink.id === "wine") {
+      const w = WINES.find((x) => x.id === draft.wine);
+      if (!w || soldOut[`wine:${w.id}`]) return;
+      setCart([{ key: keyCounter.current, drinkId: "wine", en: w.en, wineStyle: w.style, status: "pending" }]);
+      setPage("cart");
+      return;
+    }
     const foamOk = drink.foamEligible ? drink.foamEligible(draft) && !soldOut["addon:foam"] : false;
     const base = drink.special
       ? { key: keyCounter.current, drinkId: drink.id, en: drink.en, status: "pending" }
@@ -661,6 +738,7 @@ export default function HalfDayCafe() {
       { id: "espresso", label: "Espresso Station" },
       { id: "pourover", label: "Pour Over Station" },
       { id: "icecream", label: "Sweet Treat Station" },
+      { id: "wine", label: "Wine Station" },
     ];
     return (
       <div className="hd-ui" style={{ minHeight: "100vh", width: "100%", color: COLORS.cream, position: "relative" }}>
@@ -958,6 +1036,45 @@ export default function HalfDayCafe() {
                 <div style={{ fontSize: "14px", color: "#f4b48a", fontWeight: 700 }}>Sold out for now</div>
                 <div style={{ fontSize: "12.5px", color: "rgba(244,240,230,0.7)", marginTop: "6px" }}>Check back soon, or pick something else from the menu.</div>
               </div>
+            ) : drink.isWineList ? (
+              <div style={{ background: "rgba(4,12,8,0.5)", backdropFilter: "blur(10px)", border: `1px solid ${COLORS.line}`, borderRadius: "18px", padding: "14px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                {WINES.map((w) => {
+                  const wineOut = !!soldOut[`wine:${w.id}`];
+                  const selected = draft.wine === w.id;
+                  return (
+                    <button
+                      key={w.id}
+                      onClick={() => !wineOut && setDraft((d) => ({ ...d, wine: w.id }))}
+                      disabled={wineOut}
+                      style={{
+                        textAlign: "left", padding: "12px 14px", borderRadius: "12px",
+                        border: `1.4px solid ${wineOut ? "rgba(226,163,122,0.4)" : selected ? COLORS.gold : "rgba(244,240,230,0.2)"}`,
+                        background: wineOut ? "rgba(226,163,122,0.08)" : selected ? "rgba(201,168,118,0.15)" : "rgba(244,240,230,0.04)",
+                        cursor: wineOut ? "default" : "pointer", opacity: wineOut ? 0.55 : 1,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+                        <div className="hd-display" style={{ fontSize: "17px", fontWeight: 600, color: COLORS.white }}>{w.en}</div>
+                        {wineOut && <span style={{ fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.03em", color: "#f4b48a", flexShrink: 0 }}>SOLD OUT</span>}
+                      </div>
+                      <div style={{ fontSize: "11px", color: COLORS.gold, marginTop: "2px" }}>{w.style}</div>
+                      <div style={{ fontSize: "11.5px", color: "rgba(244,240,230,0.65)", marginTop: "4px" }}>{w.note}</div>
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => addToCart(drink)}
+                  disabled={!draft.wine || soldOut[`wine:${draft.wine}`]}
+                  style={{
+                    marginTop: "4px", padding: "13px", borderRadius: "12px", border: "none",
+                    background: (!draft.wine || soldOut[`wine:${draft.wine}`]) ? "rgba(201,168,118,0.35)" : COLORS.gold,
+                    color: "#241f18", fontSize: "14.5px", fontWeight: 700,
+                    cursor: (!draft.wine || soldOut[`wine:${draft.wine}`]) ? "default" : "pointer",
+                  }}
+                >
+                  Add to Order
+                </button>
+              </div>
             ) : drink.special ? (
               <div style={{ background: "rgba(4,12,8,0.5)", backdropFilter: "blur(10px)", border: `1px solid ${COLORS.line}`, borderRadius: "18px", padding: "18px", display: "flex", flexDirection: "column", gap: "14px" }}>
                 <div style={{ fontSize: "13.5px", color: COLORS.cream, fontStyle: "italic" }}>
@@ -1127,34 +1244,24 @@ export default function HalfDayCafe() {
 
         <div style={{ padding: "18px 20px 6px", display: "flex", flexDirection: "column", gap: "12px", background: "#07150f" }}>
           {(() => {
-            const inProgressOrders = orders.filter((o) => (o.items || []).some((it) => it.status === "in_progress"));
-            return inProgressOrders.length > 0 ? (
-              <div style={{ borderRadius: "16px", border: `1px solid ${COLORS.gold}`, background: "rgba(201,168,118,0.1)", padding: "14px 16px" }}>
-                <div style={{ fontSize: "11px", letterSpacing: "0.1em", color: COLORS.gold, fontWeight: 700, marginBottom: "10px" }}>BEING MADE</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-                  {inProgressOrders.map((o) => (
-                    <div key={o.id} style={{ display: "flex", alignItems: "baseline", gap: "6px", background: "rgba(4,12,8,0.4)", borderRadius: "10px", padding: "6px 10px" }}>
-                      <span className="hd-display" style={{ fontSize: "18px", fontWeight: 600, color: COLORS.gold }}>{formatOrderNumber(o.number)}</span>
-                      {o.name && <span style={{ fontSize: "11.5px", color: COLORS.white }}>{o.name}</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null;
+            const inProgressOrders = orders.filter((o) => (o.items || []).some((it) => it.status === "in_progress")).slice(0, 10);
+            return (
+              <LiveBoard
+                title="Being Made"
+                accent={COLORS.gold}
+                items={inProgressOrders}
+                expanded={progressExpanded}
+                onToggle={() => setProgressExpanded((v) => !v)}
+              />
+            );
           })()}
-          {readyBoard.length > 0 && (
-            <div style={{ borderRadius: "16px", border: `1px solid ${COLORS.sage}`, background: "rgba(159,230,192,0.1)", padding: "14px 16px" }}>
-              <div style={{ fontSize: "11px", letterSpacing: "0.1em", color: COLORS.sage, fontWeight: 700, marginBottom: "10px" }}>READY FOR PICKUP</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-                {readyBoard.map((o) => (
-                  <div key={o.id} style={{ display: "flex", alignItems: "baseline", gap: "6px", background: "rgba(4,12,8,0.4)", borderRadius: "10px", padding: "6px 10px" }}>
-                    <span className="hd-display" style={{ fontSize: "18px", fontWeight: 600, color: COLORS.sage }}>{formatOrderNumber(o.number)}</span>
-                    {o.name && <span style={{ fontSize: "11.5px", color: COLORS.white }}>{o.name}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <LiveBoard
+            title="Ready for Pickup"
+            accent={COLORS.sage}
+            items={readyBoard}
+            expanded={readyExpanded}
+            onToggle={() => setReadyExpanded((v) => !v)}
+          />
           <div style={{ fontSize: "11px", letterSpacing: "0.12em", color: "rgba(244,240,230,0.55)", fontWeight: 700, marginBottom: "2px" }}>TODAY'S MENU</div>
           {DRINKS.map((drink) => {
             const isOut = !!soldOut[drink.id];
