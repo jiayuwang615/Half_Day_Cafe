@@ -154,6 +154,17 @@ function describeItem(item) {
   return parts.length ? parts.join(" - ") : "Plain";
 }
 
+// Fisher-Yates shuffle, used to draw poems without replacement so a
+// run of orders cycles through all of them before any repeats.
+function shuffledIndices(n) {
+  const arr = Array.from({ length: n }, (_, i) => i);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 function primaryDrink(cart) {
   if (cart.length === 0) return DRINKS[0];
   const counts = {};
@@ -284,20 +295,111 @@ function Chip({ active, onClick, children, soldOut }) {
 }
 
 /* ---------------------------------------------------------------
-   Classical Chinese summer poetry (Tang/Song Dynasty, public domain)
-   shown on the order status page, matching the register of the
-   brand's own slogan. Each verified against multiple sources; my
-   own English rendering + the poet/poem for attribution.
+   Classical Chinese summer poetry (100 entries, Tang/Song/Jin
+   Dynasty, public domain), provided by the cafe owner. Drawn from
+   a wide roster of poets so a full day of orders rarely repeats one.
 --------------------------------------------------------------- */
 const POEMS = [
-  { zh: "\u5C0F\u8377\u624D\u9732\u5C16\u5C16\u89D2\uFF0C\u65E9\u6709\u873B\u8713\u7ACB\u4E0A\u5934\u3002", en: "The first tiny lotus tip has just broken the surface, and already a dragonfly stands on it.", from: "Yang Wanli, \'The Small Pond\' (Song Dynasty)" },
-  { zh: "\u63A5\u5929\u83B2\u53F6\u65E0\u7A77\u78A7\uFF0C\u6620\u65E5\u8377\u82B1\u522B\u6837\u7EA2\u3002", en: "Lotus leaves meet the sky in endless green; sunlit lotus blooms glow a red like no other.", from: "Yang Wanli, \'Leaving Jingci Temple at Dawn\' (Song Dynasty)" },
-  { zh: "\u522B\u9662\u6DF1\u6DF1\u590F\u7C1F\u6E05\uFF0C\u77F3\u69B4\u5F00\u904D\u900F\u5E18\u660E\u3002", en: "In the quiet courtyard the summer mat runs cool; pomegranates bloom bright through the curtain.", from: "Su Shunqin, \'Summer Thoughts\' (Song Dynasty)" },
-  { zh: "\u9ED1\u4E91\u7FFB\u58A8\u672A\u906E\u5C71\uFF0C\u767D\u96E8\u8DF3\u73E0\u4E71\u5165\u8239\u3002", en: "Black clouds spill like ink, not yet hiding the hills; white rain leaps like scattered pearls into the boat.", from: "Su Shi, \'Written While Drunk at Wanghu Tower\' (Song Dynasty)" },
-  { zh: "\u660E\u6708\u522B\u679D\u60CA\u9E4A\uFF0C\u6E05\u98CE\u534A\u591C\u9E23\u8749\u3002", en: "The bright moon startles a magpie from its branch; a cool breeze carries the cicadas' midnight song.", from: "Xin Qiji, \'Riding at Night Past Yellow Sand Ridge\' (Song Dynasty)" },
-  { zh: "\u6885\u5B50\u7559\u9178\u8F6F\u9F7F\u7259\uFF0C\u82AD\u8549\u5206\u7EFF\u4E0E\u7A97\u7EB1\u3002", en: "Plums leave a sourness that lingers on the teeth; banana leaves lend their green to the window screen.", from: "Fan Chengda, \'Fields in Every Season - Summer\' (Song Dynasty)" },
-  { zh: "\u5C0F\u5A03\u6491\u5C0F\u8247\uFF0C\u5077\u91C7\u767D\u83B2\u56DE\u3002", en: "A little child poles a small boat, secretly picking white lotus to bring home.", from: "Bai Juyi, \'On the Pond\' (Tang Dynasty)" },
-  { zh: "\u591C\u70ED\u4F9D\u7136\u5348\u70ED\u540C\uFF0C\u5F00\u95E8\u5C0F\u7ACB\u6708\u660E\u4E2D\u3002", en: "The night's heat is just as fierce as noon's; I open the door and stand a moment in the bright moonlight.", from: "Yang Wanli, \'Chasing Coolness on a Summer Night\' (Song Dynasty)" },
+  { zh: "\u9996\u590F\u72B9\u6E05\u548C\uFF0C\u82B3\u8349\u4EA6\u672A\u6B47\u3002", en: "Early summer remains gentle and clear; the fragrant grasses have not yet withered.", from: "Xie Lingyun, \'Early Summer\' (Jin)" },
+  { zh: "\u63A5\u5929\u83B2\u53F6\u65E0\u7A77\u78A7\uFF0C\u6620\u65E5\u8377\u82B1\u522B\u6837\u7EA2\u3002", en: "Lotus leaves stretch endlessly green to meet the sky, while lotus blossoms reflect the sun in vivid red.", from: "Yang Wanli, \'Leaving Jingci Temple at Dawn in June\' (Song)" },
+  { zh: "\u7EFF\u6811\u9634\u6D53\u590F\u65E5\u957F\uFF0C\u697C\u53F0\u5012\u5F71\u5165\u6C60\u5858\u3002", en: "Deep green tree shade lengthens the summer days, casting reflections of pavilions into the pond.", from: "Gao Pian, \'Mountain Pavilion on a Hot Day\' (Tang)" },
+  { zh: "\u5C0F\u8377\u624D\u9732\u5C16\u5C16\u89D2\uFF0C\u65E9\u6709\u873B\u8713\u7ACB\u4E0A\u5934\u3002", en: "A tender lotus leaf barely shows its sharp tip before a dragonfly settles upon it.", from: "Yang Wanli, \'Small Pond\' (Song)" },
+  { zh: "\u7AF9\u6DF1\u6811\u5BC6\u866B\u9E23\u5904\uFF0C\u65F6\u6709\u5FAE\u51C9\u4E0D\u662F\u98CE\u3002", en: "In the deep bamboo and dense trees where insects sing, a sudden coolness arrives without a breeze.", from: "Yang Wanli, \'Summer Night\' (Song)" },
+  { zh: "\u7AF9\u55A7\u5F52\u6D63\u5973\uFF0C\u83B2\u52A8\u4E0B\u6E14\u821F\u3002", en: "Bamboo rustles as washerwomen return home, and lotus leaves sway as fishing boats glide downriver.", from: "Wang Wei, \'Evening in Mountain Dwelling\' (Tang)" },
+  { zh: "\u8377\u98CE\u9001\u9999\u6C14\uFF0C\u7AF9\u9732\u6EF4\u6E05\u54CD\u3002", en: "The breeze over the lotus wafts sweet fragrance, while dew from bamboo drips with a crisp sound.", from: "Meng Haoran, \'Retreat at Yanshan\' (Tang)" },
+  { zh: "\u9EC4\u6885\u65F6\u8282\u5BB6\u5BB6\u96E8\uFF0C\u9752\u8349\u6C60\u5858\u5904\u5904\u86D9\u3002", en: "Plum-rain season brings rain to every home, while frogs croak everywhere around green-grass ponds.", from: "Zhao Shixiu, \'A Guest\'s Visit\' (Song)" },
+  { zh: "\u82B3\u83F2\u6B47\u53BB\u4F55\u987B\u6068\uFF0C\u590F\u6728\u9634\u9634\u6B63\u53EF\u4EBA\u3002", en: "No need to regret the fading of spring flowers; the thick shade of summer trees is just as pleasant.", from: "Qin Guan, \'Elegance of Summer\' (Song)" },
+  { zh: "\u6C34\u6EE1\u6709\u5C71\u539F\uFF0C\u6674\u7A7A\u590F\u666F\u9C9C\u3002", en: "Waters fill the mountain streams; the clear sky paints a fresh summer scene.", from: "Du Fu, \'Summer Field\' (Tang)" },
+  { zh: "\u6E05\u6C5F\u4E00\u66F2\u62B1\u6751\u6D41\uFF0C\u957F\u590F\u6C5F\u6751\u4E8B\u4E8B\u5E7D\u3002", en: "A clear river curves gently around the village; through the long summer, all is peaceful.", from: "Du Fu, \'River Village\' (Tang)" },
+  { zh: "\u6F20\u6F20\u6C34\u7530\u98DE\u767D\u9E6D\uFF0C\u9634\u9634\u590F\u6728\u556D\u9EC4\u9E42\u3002", en: "Over vast watery fields white egrets fly; amidst thick summer trees yellow orioles sing.", from: "Wang Wei, \'Wangchuan Villa\' (Tang)" },
+  { zh: "\u6DF1\u5C45\u4FEF\u5939\u57CE\uFF0C\u6625\u53BB\u590F\u72B9\u6E05\u3002", en: "Living secluded near the city walls, spring departs yet summer stays fresh and clear.", from: "Li Shangyin, \'Secluded Residence\' (Tang)" },
+  { zh: "\u6C34\u79EF\u6625\u5858\u665A\uFF0C\u9634\u4EA4\u590F\u6728\u7E41\u3002", en: "Water gathers in late spring ponds, while merging shades mark the lush summer trees.", from: "Bai Juyi, \'Evening Pond\' (Tang)" },
+  { zh: "\u98CE\u7B1B\u9732\u6E05\u591C\uFF0C\u6708\u9AD8\u590F\u666F\u957F\u3002", en: "Wind plays flutes through the dew-lit night; high above, the moon lingers over the long summer.", from: "Zhang Ji, \'Summer Night\' (Tang)" },
+  { zh: "\u6CC9\u773C\u65E0\u58F0\u60DC\u7EC6\u6D41\uFF0C\u6811\u9634\u7167\u6C34\u7231\u6674\u67D4\u3002", en: "The spring mouth flows silently as if sparing its stream, while tree shade adores the sunny water.", from: "Yang Wanli, \'Small Pond\' (Song)" },
+  { zh: "\u5377\u5730\u98CE\u6765\u5FFD\u5439\u6563\uFF0C\u671B\u6E56\u697C\u4E0B\u6C34\u5982\u5929\u3002", en: "A sudden wind sweeps over the earth and clears the storm; beneath Lake-View Tower, water merges with sky.", from: "Su Shi, \'Drinking at Lake-View Tower\' (Song)" },
+  { zh: "\u9ED1\u4E91\u7FFB\u58A8\u672A\u906E\u5C71\uFF0C\u767D\u96E8\u8DF3\u73E0\u4E71\u5165\u8239\u3002", en: "Dark clouds like spilled ink have not yet veiled the hills when white raindrops leap like scattered pearls into the boat.", from: "Su Shi, \'Drinking at Lake-View Tower\' (Song)" },
+  { zh: "\u67F3\u5EAD\u98CE\u9759\u4EBA\u7720\u663C\uFF0C\u723D\u6C14\u5E7D\u59FF\u96BE\u81EA\u4F11\u3002", en: "Wind falls still in the willow courtyard as one naps by day; the cool, gentle air brings pure delight.", from: "Su Shi, \'Summer Nap\' (Song)" },
+  { zh: "\u77F3\u6881\u8305\u5C4B\u6709\u4E7E\u5764\uFF0C\u6696\u65E5\u548C\u98CE\u590F\u666F\u65B0\u3002", en: "A stone bridge and thatched hut hold their own world; warm sun and gentle breezes refresh the summer landscape.", from: "Lu You, \'Stone Bridge\' (Song)" },
+  { zh: "\u6674\u65E5\u6696\u98CE\u751F\u9EA6\u6C14\uFF0C\u7EFF\u9634\u5E7D\u8349\u80DC\u82B1\u65F6\u3002", en: "Sunny rays and warm breezes bring the fragrance of wheat; green shade and quiet grass surpass the flower season.", from: "Wang Anshi, \'Early Summer\' (Song)" },
+  { zh: "\u77F3\u6EAA\u53CC\u5F15\u5404\u5206\u6D41\uFF0C\u6728\u843D\u590F\u6D53\u6E05\u5F71\u591A\u3002", en: "Stone streams split and flow in parallel; lush summer greenery casts cool, deep shadows.", from: "Mei Yaochen, \'Mountain Stream\' (Song)" },
+  { zh: "\u529B\u5C3D\u4E0D\u77E5\u70ED\uFF0C\u4F46\u60DC\u590F\u65E5\u957F\u3002", en: "Exhausted from farm work they feel no heat, only cherishing the extra daylight of long summer days.", from: "Bai Juyi, \'Reaping Wheat\' (Tang)" },
+  { zh: "\u5357\u5DDE\u590F\u6C14\u51C9\u5982\u79CB\uFF0C\u591C\u534A\u9E1F\u557C\u6708\u6EE1\u697C\u3002", en: "In the southern province, summer air is cool as autumn; at midnight birds cry under a moonlit tower.", from: "Su Shi, \'Southern Summer\' (Song)" },
+  { zh: "\u7AF9\u6447\u6E05\u5F71\u80DC\u82B1\u7EA2\uFF0C\u98CE\u9001\u8377\u9999\u5165\u665A\u7A7A\u3002", en: "Swaying bamboo shadows eclipse bright flowers, while breezes carry lotus scent into the evening air.", from: "Lu You, \'Cool Breeze\' (Song)" },
+  { zh: "\u5706\u8377\u6D6E\u5C0F\u53F6\uFF0C\u7EC6\u9EA6\u843D\u8F7B\u82B1\u3002", en: "Round lotus pads float their tiny leaves, while fine wheat sheds its light blossoms.", from: "Du Fu, \'Early Summer\' (Tang)" },
+  { zh: "\u522B\u9662\u6DF1\u6DF1\u590F\u5E2D\u6E05\uFF0C\u77F3\u69B4\u5F00\u904D\u900F\u5E18\u660E\u3002", en: "Deep in the quiet courtyard the bamboo mat feels cool, as blooming pomegranates glow through woven curtains.", from: "Su Shi, \'Quiet Courtyard\' (Song)" },
+  { zh: "\u65E5\u66AE\u7B19\u6B4C\u8FDB\u9152\uFF0C\u8377\u82B1\u4E16\u754C\u67F3\u4E1D\u4E61\u3002", en: "At sunset flutes ring out and wine is poured in a world of lotus blossoms and draped willow threads.", from: "Yang Wanli, \'Lake Evening\' (Song)" },
+  { zh: "\u6E05\u6691\u6BBF\u524D\u51C9\u610F\u591A\uFF0C\u7AF9\u7A97\u659C\u65E5\u7167\u5FAE\u6CE2\u3002", en: "Coolness lingers before the palace of summer ease, where setting sun rays through bamboo windows light up ripples.", from: "Su Shi, \'Summer Palace\' (Song)" },
+  { zh: "\u6C34\u5149\u6F4B\u6EDF\u6674\u65B9\u597D\uFF0C\u5C71\u8272\u7A7A\u8499\u96E8\u4EA6\u5947\u3002", en: "The lake sparkles bright under sunny skies, yet misty mountain rain holds a magic all its own.", from: "Su Shi, \'West Lake in Rain and Sun\' (Song)" },
+  { zh: "\u83F1\u900F\u6E05\u6CE2\u590F\u65E5\u957F\uFF0C\u91CE\u822A\u65E0\u4E8B\u526A\u8377\u9999\u3002", en: "Water chestnuts break clear waves through long summer days, as idle rustic boats cut through fragrant lotus.", from: "Lu You, \'River Trip\' (Song)" },
+  { zh: "\u81EA\u6765\u81EA\u53BB\u5802\u524D\u71D5\uFF0C\u76F8\u4EB2\u76F8\u8FD1\u6C34\u4E2D\u9E25\u3002", en: "Swallows come and go freely before the hall; gulls flock peacefully together upon the stream.", from: "Du Fu, \'River Village\' (Tang)" },
+  { zh: "\u7EFF\u9634\u751F\u663C\u9759\uFF0C\u5B64\u82B1\u8868\u6625\u4F59\u3002", en: "Lush green shade fills the quiet midday, while a lonely blossom marks the lingering touch of spring.", from: "Mei Yaochen, \'Early Summer\' (Song)" },
+  { zh: "\u590F\u534A\u9634\u6C14\u59CB\uFF0C\u6DC5\u6DC5\u98CE\u5728\u6811\u3002", en: "Midsummer brings the quiet rise of cooler shadows, as gentle winds rustle through the trees.", from: "Bai Juyi, \'Midsummer\' (Tang)" },
+  { zh: "\u98CE\u5B9A\u5C0F\u8F69\u65E0\u4FD7\u97F5\uFF0C\u7AF9\u9634\u4E00\u6574\u590F\u51C9\u751F\u3002", en: "As the wind subsides in the quiet porch, bamboo shade brings pure cool air to the midsummer day.", from: "Su Shi, \'Porch Shade\' (Song)" },
+  { zh: "\u7AF9\u5F71\u626B\u9636\u5C18\u4E0D\u52A8\uFF0C\u6708\u7A7F\u6F6D\u5E95\u6C34\u65E0\u75D5\u3002", en: "Bamboo shadows sweep the steps without stirring dust; moonlight pierces the deep pool leaving no trace.", from: "Wang Wei, \'Cool Night\' (Tang)" },
+  { zh: "\u6C5F\u5357\u6885\u96E8\u5BB6\u5BB6\u719F\uFF0C\u91CE\u6E21\u821F\u7A7A\u5BA2\u672A\u5F52\u3002", en: "Plum rains ripen across Jiangnan homes; an empty boat sits at the wild ferry as travelers delay.", from: "Zhao Shixiu, \'Plum Rain\' (Song)" },
+  { zh: "\u6EAA\u67F4\u706B\u8F6F\u86EE\u9505\u6696\uFF0C\u6211\u4E0E\u5439\u7EF5\u7F62\u663C\u7720\u3002", en: "Stream firewood warms the small pot softly; waking from my midday summer nap, I watch cattail down drift away.", from: "Lu You, \'Summer Nap\' (Song)" },
+  { zh: "\u67F3\u5916\u8F7B\u96F7\u6C60\u4E0A\u96E8\uFF0C\u96E8\u58F0\u6EF4\u788E\u8377\u53F6\u73E0\u3002", en: "Light thunder rumbles past the willows as rain patters on the pond, shattering dew pearls on lotus leaves.", from: "Su Shi, \'Rain on Lotus Pond\' (Song)" },
+  { zh: "\u6C34\u4E0B\u8377\u82B1\u4E0D\u89E3\u6101\uFF0C\u5915\u9633\u5F71\u91CC\u81EA\u4F4E\u5934\u3002", en: "The lotus in the stream knows no sorrow, gently bowing its head in the rays of the setting sun.", from: "Mei Yaochen, \'Setting Sun Lotus\' (Song)" },
+  { zh: "\u677E\u9634\u4E00\u69BB\u51C9\u5982\u6C34\uFF0C\u6E05\u98CE\u5F90\u6765\u6691\u6C14\u6D88\u3002", en: "A couch beneath pine shade feels cool as water; a gentle breeze arrives to dispel the summer heat.", from: "Bai Juyi, \'Pine Shade\' (Tang)" },
+  { zh: "\u591C\u70ED\u4F9D\u7136\u5348\u70ED\u540C\uFF0C\u5F00\u95E8\u5C0F\u7ACB\u6708\u660E\u4E2D\u3002", en: "The night remains as hot as midday noon; I step out the door to stand beneath the bright, cool moon.", from: "Yang Wanli, \'Summer Night\' (Song)" },
+  { zh: "\u5FAE\u98CE\u5FFD\u8D77\u5439\u83B2\u53F6\uFF0C\u9752\u7389\u76D8\u4E2D\u6CFB\u6C34\u94F6\u3002", en: "A light breeze suddenly shakes the lotus leaves, spilling mercury-like raindrops across green jade plates.", from: "Su Shi, \'Lotus Rain\' (Song)" },
+  { zh: "\u5E73\u6C60\u78A7\u7389\u79CB\u6CE2\u51B7\uFF0C\u7E41\u6728\u7EFF\u9634\u590F\u666F\u957F\u3002", en: "The calm pond shines like green jade under cool ripples; dense foliage lengthens the summer scenery.", from: "Du Fu, \'Summer Lake\' (Tang)" },
+  { zh: "\u7AF9\u98CE\u8F7B\u62C2\u665A\u51C9\u751F\uFF0C\u6708\u8272\u7A7F\u6797\u591C\u66F4\u6E05\u3002", en: "A breeze through bamboo brings evening cool; moonlight filtering through woods makes the night clearer.", from: "Wang Wei, \'Bamboo Forest Night\' (Tang)" },
+  { zh: "\u4E94\u6708\u5357\u98CE\u5E73\u9646\u8D77\uFF0C\u9EA6\u6D6A\u7FFB\u9EC4\u590F\u666F\u6210\u3002", en: "The fifth-month south wind rises across the plains, turning fields into golden waves of summer harvest.", from: "Bai Juyi, \'Harvest Fields\' (Tang)" },
+  { zh: "\u96E8\u8FC7\u6797\u6DF1\u6E05\u65B0\u6C14\uFF0C\u4E91\u5F00\u5C71\u51FA\u78A7\u7EFF\u5CF0\u3002", en: "Rain leaves the deep woods crisp and fresh; clouds part to reveal emerald green mountain peaks.", from: "Li Bai, \'After the Storm\' (Tang)" },
+  { zh: "\u665A\u6765\u4E00\u96E8\u6D17\u70ED\u6C14\uFF0C\u677E\u4E0B\u68CB\u58F0\u7AF9\u4E0B\u98CE\u3002", en: "Evening rain washes away the stifling heat; chess pieces click under pines as winds rustle bamboo.", from: "Lu You, \'Evening Chess\' (Song)" },
+  { zh: "\u77F3\u69B4\u82B1\u53D1\u6EE1\u6EAA\u7EA2\uFF0C\u83AB\u9053\u590F\u666F\u4E0D\u5982\u6625\u3002", en: "Pomegranates bloom red along the stream; say not that summer scenery falls short of spring.", from: "Su Shi, \'Pomegranate Stream\' (Song)" },
+  { zh: "\u6C34\u5149\u5C71\u8272\u4E24\u76F8\u5B9C\uFF0C\u6691\u6C14\u521D\u6D88\u590F\u65E5\u8FDF\u3002", en: "Shimmering waters and mountain hues blend in harmony; as heat wanes, long summer days linger softly.", from: "Yang Wanli, \'Late Summer\' (Song)" },
+  { zh: "\u8377\u82B1\u6DF1\u5904\u5C0F\u821F\u901A\uFF0C\u91CE\u6C34\u832B\u832B\u590F\u666F\u6D53\u3002", en: "A small boat threads deep through lotus blooms, where wild waters reflect midsummer's rich beauty.", from: "Mei Yaochen, \'Deep in Lotus\' (Song)" },
+  { zh: "\u590F\u5C71\u5982\u7FE0\u6EF4\uFF0C\u6E05\u6CC9\u77F3\u4E0A\u6D41\u3002", en: "Summer mountains drip with vivid green, while clear springs flow gently over smooth stones.", from: "Wang Wei, \'Green Mountains\' (Tang)" },
+  { zh: "\u91CE\u5858\u590F\u5BC6\u8349\u6728\u6D53\uFF0C\u65E5\u843D\u725B\u7F8A\u81EA\u5165\u6751\u3002", en: "Wild ponds are thick with dense summer grass; at sunset cattle and sheep wander home on their own.", from: "Fan Chengda, \'Pastoral Sunset\' (Song)" },
+  { zh: "\u4E00\u96E8\u6D17\u6E05\u590F\u591C\u70ED\uFF0C\u661F\u5149\u707F\u70C2\u5165\u6C5F\u6D41\u3002", en: "A single rain cleanses the summer night heat, sending brilliant starlight floating down the river.", from: "Du Fu, \'Starry River\' (Tang)" },
+  { zh: "\u7AF9\u5F71\u6447\u6643\u6691\u6C14\u6D88\uFF0C\u6E05\u98CE\u62C2\u9762\u5750\u6EAA\u6865\u3002", en: "Swaying bamboo shadows banish the midday heat; a light breeze brushes my face on the bridge.", from: "Lu You, \'Stream Bridge\' (Song)" },
+  { zh: "\u83F1\u82B1\u521D\u653E\u7EFF\u6CE2\u95F4\uFF0C\u767D\u9E6D\u53CC\u98DE\u590F\u65E5\u95F2\u3002", en: "Water chestnut blossoms open on green waves, where egrets fly in pairs through idle summer days.", from: "Bai Juyi, \'Idle Summer\' (Tang)" },
+  { zh: "\u5FAE\u98CE\u52A8\u7AF9\u51C9\u751F\u8896\uFF0C\u659C\u65E5\u7167\u6C60\u5149\u6EE1\u8863\u3002", en: "A light breeze shakes bamboo to cool my sleeves, as slanted sunbeams fill my robes with liquid light.", from: "Su Shi, \'Bamboo Porch\' (Song)" },
+  { zh: "\u591C\u534A\u6E05\u98CE\u6D17\u6691\u70ED\uFF0C\u6EE1\u5929\u660E\u6708\u7167\u8377\u6C60\u3002", en: "Midnight breezes wash away the daytime heat, while a bright moon illuminates the lotus pool.", from: "Gao Pian, \'Moonlit Lotus\' (Tang)" },
+  { zh: "\u67F3\u9634\u4E0B\u6C34\u5BA2\u505C\u821F\uFF0C\u5348\u70ED\u5FAE\u6D88\u590F\u65E5\u60A0\u3002", en: "Under willow shade travelers rest their boat, as noon heat fades into a lazy summer day.", from: "Meng Haoran, \'Resting Boat\' (Tang)" },
+  { zh: "\u6C34\u6C60\u6E05\u6D45\u8377\u82B1\u52A8\uFF0C\u590F\u6728\u9634\u6D53\u8749\u9E23\u9891\u3002", en: "Lotus flowers sway in shallow clear pools, while cicadas sing incessantly in dense summer shade.", from: "Liu Zongyuan, \'Summer Pool\' (Tang)" },
+  { zh: "\u6E05\u98CE\u5982\u53EF\u5BA2\uFF0C\u62C2\u9762\u5EA6\u590F\u65E5\u3002", en: "If the cool breeze were a welcome guest, it would brush one's face to ease the summer day.", from: "Li Bai, \'Summer Guest\' (Tang)" },
+  { zh: "\u77F3\u69B4\u5F00\u82B1\u7EA2\u80DC\u706B\uFF0C\u7EFF\u6768\u836B\u6D53\u590F\u65E5\u957F\u3002", en: "Pomegranate blossoms burn redder than fire, beneath deep willow shade through long summer hours.", from: "Su Shi, \'Red Pomegranate\' (Song)" },
+  { zh: "\u5C71\u6DF1\u590F\u65E5\u51C9\u5982\u79CB\uFF0C\u77F3\u4E0A\u6E05\u6CC9\u6EDA\u6EDA\u6D41\u3002", en: "Deep in the mountains summer feels like autumn, with clear springs gushing endlessly over rocks.", from: "Lu You, \'Deep Mountains\' (Song)" },
+  { zh: "\u8377\u53F6\u7F57\u88D9\u4E00\u8272\u88C1\uFF0C\u8299\u84C9\u5411\u8138\u4E24\u8FB9\u5F00\u3002", en: "Gatherers' green skirts match the lotus leaves exactly, as pink blooms mirror their faces on both sides.", from: "Wang Changling, \'Gathering Lotus\' (Tang)" },
+  { zh: "\u7AF9\u6DF1\u6E05\u6C14\u590F\u65E5\u957F\uFF0C\u5750\u542C\u8749\u58F0\u5165\u6797\u6DF1\u3002", en: "Deep bamboo yields crisp air on long summer days; I sit listening as cicada songs drift into the woods.", from: "Wang Wei, \'Listening to Cicadas\' (Tang)" },
+  { zh: "\u4E91\u6563\u6674\u7A7A\u590F\u666F\u5F00\uFF0C\u6E05\u6CE2\u7EFF\u6C34\u5370\u5C71\u6765\u3002", en: "Clouds scatter to reveal bright summer skies, where green waves reflect mountain shadows.", from: "Bai Juyi, \'Clear Summer Sky\' (Tang)" },
+  { zh: "\u96E8\u540E\u590F\u5C71\u9752\u6B32\u6EF4\uFF0C\u98CE\u524D\u8377\u53F6\u9999\u81EA\u6765\u3002", en: "After rain, summer mountains glow vivid emerald, while wind carries natural lotus sweetness.", from: "Yang Wanli, \'After the Rain\' (Song)" },
+  { zh: "\u6EAA\u8FB9\u7EFF\u6811\u9634\u6D53\u5904\uFF0C\u5348\u7761\u521D\u9192\u542C\u5FAE\u98CE\u3002", en: "In the deep tree shade beside the creek, I wake from a nap to listen to the soft wind.", from: "Su Shi, \'Creek Nap\' (Song)" },
+  { zh: "\u6EE1\u5858\u8377\u82B1\u7ADE\u76F8\u5F00\uFF0C\u590F\u65E5\u6E05\u9999\u8FCE\u9762\u6765\u3002", en: "A pond full of lotus blooms competes in glory, casting fresh summer sweetness into the air.", from: "Mei Yaochen, \'Full Lotus Pond\' (Song)" },
+  { zh: "\u677E\u9634\u4E0B\u5750\u77F3\u5E8A\u51B7\uFF0C\u7AF9\u6797\u6DF1\u5904\u590F\u98CE\u51C9\u3002", en: "Sitting under pine shade, the stone bed feels cold; deep inside bamboo woods, summer breezes cool.", from: "Liu Zongyuan, \'Stone Bed\' (Tang)" },
+  { zh: "\u6E05\u6C5F\u590F\u65E5\u821F\u4EBA\u5C11\uFF0C\u72EC\u9493\u7EFF\u9634\u6C34\u58A8\u95F4\u3002", en: "Few boats travel the clear summer river; alone I fish in green shade like an ink-wash painting.", from: "Du Fu, \'Fishing in Ink\' (Tang)" },
+  { zh: "\u77F3\u69B4\u534A\u5F00\u7167\u78A7\u6EAA\uFF0C\u590F\u65E5\u98CE\u5149\u6B63\u5B9C\u4EBA\u3002", en: "Half-opened pomegranate blooms light up the green stream; summer scenery reaches its delight.", from: "Fan Chengda, \'Pomegranate Stream\' (Song)" },
+  { zh: "\u590F\u65E5\u6797\u6DF1\u6691\u6C14\u5FAE\uFF0C\u4E00\u6761\u6E05\u6EAA\u7ED5\u5C71\u98DE\u3002", en: "Deep summer woods soften the heat, where a single clear stream snakes around the peak.", from: "Li Bai, \'Deep Forest\' (Tang)" },
+  { zh: "\u8377\u53F6\u521D\u5F00\u5C0F\u5982\u94B1\uFF0C\u6C34\u4E0A\u6D6E\u5149\u590F\u666F\u9C9C\u3002", en: "Newly opened lotus leaves are small as coins, as shimmering waters highlight fresh summer beauty.", from: "Yang Wanli, \'New Lotus\' (Song)" },
+  { zh: "\u7AF9\u5F71\u6E05\u51C9\u4EBA\u610F\u9002\uFF0C\u5348\u98CE\u5439\u6563\u6691\u6C14\u6D53\u3002", en: "Cool bamboo shadows put the heart at ease; noon winds blow away the heavy midsummer heat.", from: "Lu You, \'Bamboo Ease\' (Song)" },
+  { zh: "\u590F\u5C71\u96E8\u8FC7\u4E91\u521D\u6563\uFF0C\u591C\u6708\u5982\u6C34\u7167\u6E05\u6F6D\u3002", en: "Clouds part over summer peaks after the storm; moonbeams like water illuminate the clear pool.", from: "Wang Wei, \'Clear Pool\' (Tang)" },
+  { zh: "\u7EFF\u9634\u62A4\u590F\u65E5\u4E0D\u6652\uFF0C\u6EAA\u6C34\u6D41\u9999\u82B1\u81EA\u5F00\u3002", en: "Lush greenery shields against the summer sun, while stream waters flow sweet with wild blossoms.", from: "Su Shi, \'Shielded Stream\' (Song)" },
+  { zh: "\u665A\u6765\u98CE\u8D77\u83B2\u9999\u8FDC\uFF0C\u6708\u7167\u5E73\u6E56\u590F\u591C\u6E05\u3002", en: "Evening winds carry lotus fragrance far, as moonbeams brighten the calm summer lake.", from: "Gao Pian, \'Calm Lake Night\' (Tang)" },
+  { zh: "\u4E94\u6708\u6E05\u6C5F\u6C34\u5E73\u5CB8\uFF0C\u7EFF\u6811\u6D53\u9634\u590F\u65E5\u957F\u3002", en: "In the fifth month clear river waters touch the bank, beneath lush tree shade through long summer days.", from: "Bai Juyi, \'River Bank\' (Tang)" },
+  { zh: "\u96F7\u96E8\u521D\u8FC7\u590F\u5929\u6E05\uFF0C\u65B0\u7AF9\u62D4\u8282\u7EFF\u6210\u6797\u3002", en: "Thunderstorms clear to reveal fresh summer skies, as young bamboo shoots rise into green woods.", from: "Mei Yaochen, \'Young Bamboo\' (Song)" },
+  { zh: "\u6E05\u6CC9\u6D41\u8FC7\u77F3\u6865\u4E0B\uFF0C\u590F\u65E5\u5FAE\u98CE\u9001\u5FAE\u51C9\u3002", en: "Clear springs flow under the stone bridge, as light summer breezes bring welcome coolness.", from: "Liu Zongyuan, \'Stone Bridge Stream\' (Tang)" },
+  { zh: "\u4E00\u6C60\u6C34\u7EFF\u8377\u82B1\u7EA2\uFF0C\u590F\u65E5\u6E05\u6668\u666F\u4E0D\u540C\u3002", en: "Green pond waters match red lotus blooms; summer dawn presents a scene unlike any other.", from: "Yang Wanli, \'Summer Dawn\' (Song)" },
+  { zh: "\u67F3\u6811\u9634\u4E0B\u597D\u907F\u6691\uFF0C\u6EAA\u6C34\u6E05\u6F88\u53EF\u76D8\u8DB3\u3002", en: "Deep willow shade offers perfect refuge from heat, where crystal creek waters cool bare feet.", from: "Lu You, \'Cooling Feet\' (Song)" },
+  { zh: "\u590F\u534A\u6797\u6DF1\u65E0\u6691\u610F\uFF0C\u677E\u98CE\u4E00\u9635\u9001\u51C9\u6765\u3002", en: "Midsummer deep in the woods holds no heat; gusts through pine branches bring crisp, cool air.", from: "Su Shi, \'Pine Breeze\' (Song)" },
+  { zh: "\u8377\u82B1\u6D6A\u91CC\u6728\u5170\u821F\uFF0C\u590F\u65E5\u6C5F\u5357\u597D\u6E38\u4F11\u3002", en: "Magnolia boats paddle through lotus waves; Jiangnan in summer is fine for rest and travel.", from: "Wang Changling, \'Jiangnan Travel\' (Tang)" },
+  { zh: "\u4E91\u6536\u96E8\u6563\u590F\u5C71\u9752\uFF0C\u6EAA\u6D41\u6F8E\u6E43\u6C34\u6DB5\u7A7A\u3002", en: "Clouds gather up rain and leave mountains vibrant green, as surging streams reflect the empty sky.", from: "Li Bai, \'Surging Stream\' (Tang)" },
+  { zh: "\u7AF9\u6797\u6E05\u5F71\u590F\u65E5\u51B7\uFF0C\u91CE\u9E1F\u5B64\u98DE\u5165\u7EFF\u4E91\u3002", en: "Cool bamboo shadows make summer feel cold, as a solitary wild bird flies into green canopy.", from: "Du Fu, \'Green Canopy\' (Tang)" },
+  { zh: "\u5348\u70ED\u521D\u6D88\u5FAE\u98CE\u8D77\uFF0C\u4E00\u5858\u8377\u9999\u5165\u665A\u51C9\u3002", en: "As noon heat ebbs a gentle breeze stirs, bringing pond lotus sweetness into the cool evening.", from: "Fan Chengda, \'Evening Lotus\' (Song)" },
+  { zh: "\u7EFF\u6811\u9634\u6D53\u590F\u65E5\u957F\uFF0C\u6C34\u9601\u98CE\u51C9\u597D\u5F15\u676F\u3002", en: "Deep green shadows stretch the summer days, where cool pavilion winds invite another cup of wine.", from: "Gao Pian, \'Pavilion Wine\' (Tang)" },
+  { zh: "\u77F3\u4E0A\u6E05\u6CC9\u590F\u591C\u54CD\uFF0C\u6708\u5149\u5982\u96EA\u7167\u82D4\u75D5\u3002", en: "Clear springs hum over stone on summer nights, while snow-like moonlight brightens mossy traces.", from: "Wang Wei, \'Night Springs\' (Tang)" },
+  { zh: "\u590F\u65E5\u7530\u5BB6\u5C11\u6687\u65E5\uFF0C\u9EA6\u6536\u65B9\u7F62\u53C8\u63D2\u79E7\u3002", en: "Farming families find few idle summer days; no sooner is wheat harvested than rice planting begins.", from: "Bai Juyi, \'Farmers\' Summer\' (Tang)" },
+  { zh: "\u96E8\u540E\u8377\u82B1\u9999\u66F4\u6D53\uFF0C\u6E05\u6CE2\u8361\u6F3E\u590F\u65E5\u4E2D\u3002", en: "Lotus blooms smell sweeter after rain, as clear waves ripple in the midsummer light.", from: "Su Shi, \'Ripples after Rain\' (Song)" },
+  { zh: "\u7AF9\u5F71\u6E05\u51C9\u4FB5\u5C0F\u69BB\uFF0C\u590F\u65E5\u5348\u7761\u6700\u5B9C\u4EBA\u3002", en: "Cool bamboo shadows seep into the small couch, making a midsummer nap pure delight.", from: "Lu You, \'Midsummer Nap\' (Song)" },
+  { zh: "\u590F\u5C71\u5982\u78A7\u6EF4\u6E05\u6CC9\uFF0C\u677E\u98CE\u5439\u9001\u665A\u51C9\u5929\u3002", en: "Summer peaks drop emerald into clear springs, as pine winds bring in cool evening skies.", from: "Liu Zongyuan, \'Emerald Peaks\' (Tang)" },
+  { zh: "\u8377\u53F6\u5343\u91CD\u7EFF\u5F71\u6DF1\uFF0C\u590F\u98CE\u4E00\u5439\u6EE1\u6C60\u9999\u3002", en: "Layered lotus leaves cast deep green shade, sending sweetness across the pond with a single breeze.", from: "Mei Yaochen, \'Layered Lotus\' (Song)" },
+  { zh: "\u96F7\u58F0\u8FC7\u540E\u590F\u96E8\u8DB3\uFF0C\u78A7\u8349\u7EFF\u6811\u666F\u66F4\u65B0\u3002", en: "Thunder passes leaving ample summer rain, renewing emerald grass and dark green trees.", from: "Yang Wanli, \'Summer Rain\' (Song)" },
+  { zh: "\u77F3\u69B4\u82B1\u7EA2\u7AF9\u5F71\u9752\uFF0C\u590F\u65E5\u5EAD\u9662\u81EA\u5E7D\u6E05\u3002", en: "Red pomegranate blossoms meet blue-green bamboo shade, leaving the summer courtyard quiet and serene.", from: "Gao Pian, \'Serene Courtyard\' (Tang)" },
+  { zh: "\u6EAA\u6C34\u6E05\u6E05\u590F\u65E5\u957F\uFF0C\u677E\u9634\u4E0B\u5750\u542C\u8749\u9E23\u3002", en: "Clear stream waters stretch long summer days, as I sit beneath pine shade listening to cicadas.", from: "Wang Wei, \'Listening under Pines\' (Tang)" },
+  { zh: "\u665A\u6765\u590F\u96E8\u6D17\u5C18\u57C3\uFF0C\u6EE1\u5929\u661F\u5149\u7167\u591C\u53F0\u3002", en: "Evening summer rain washes away all dust, leaving starry skies to light up the night terrace.", from: "Du Fu, \'Night Terrace\' (Tang)" },
+  { zh: "\u590F\u65E5\u6797\u6CC9\u5E7D\u81F4\u591A\uFF0C\u6E05\u98CE\u62C2\u6C34\u6CDB\u5FAE\u6CE2\u3002", en: "Summer woods and springs abound in quiet charm, as cool breezes brush the water into light ripples.", from: "Su Shi, \'Quiet Charm\' (Song)" },
 ];
 
 /* ---------------------------------------------------------------
@@ -498,6 +600,7 @@ export default function HalfDayCafe() {
   const [orderNumber, setOrderNumber] = useState(null);
   const [submitError, setSubmitError] = useState(null);
   const keyCounter = useRef(0);
+  const poemQueueRef = useRef([]);
 
   const [orders, setOrders] = useState([]);
   const [queueLoading, setQueueLoading] = useState(true);
@@ -717,7 +820,9 @@ export default function HalfDayCafe() {
       setOrderNumber(number);
       setSubmittedOrderId(inserted.id);
       setMyOrder(inserted);
-      setPoem(POEMS[Math.floor(Math.random() * POEMS.length)]);
+      if (poemQueueRef.current.length === 0) poemQueueRef.current = shuffledIndices(POEMS.length);
+      const poemIndex = poemQueueRef.current.pop();
+      setPoem(POEMS[poemIndex]);
       setPage("confirmed");
     } catch (err) {
       setSubmitError(friendlyError(err));
